@@ -12,11 +12,9 @@ class ZeropsProvider {
             enableScripts: true,
             localResourceRoots: [this.context.extensionUri]
         };
-        // Get the current token
         const config = vscode.workspace.getConfiguration('zvsc');
         const currentToken = config.get('accessToken') || '';
         webviewView.webview.html = this.getWebviewContent(currentToken);
-        // Handle messages from webview
         webviewView.webview.onDidReceiveMessage(async (message) => {
             switch (message.command) {
                 case 'saveToken':
@@ -37,7 +35,7 @@ class ZeropsProvider {
             return;
         }
         try {
-            // TODO: Implement actual push logic here
+            // TODO For later: Implement actual push logic here with zerops api maybe :c
             vscode.window.showInformationMessage('Changes pushed to Zerops successfully!');
         }
         catch (error) {
@@ -52,15 +50,19 @@ class ZeropsProvider {
                 <head>
                     <style>
                         body { 
-                            padding: 0;
+                            padding: 10px;
                             color: var(--vscode-foreground);
                             font-family: var(--vscode-font-family);
                         }
                         .container {
                             display: flex;
                             flex-direction: column;
+                            gap: 15px;
+                        }
+                        .token-section {
+                            display: flex;
+                            flex-direction: column;
                             gap: 8px;
-                            padding-top: 16px;
                         }
                         .token-input {
                             width: 100%;
@@ -76,15 +78,9 @@ class ZeropsProvider {
                             padding: 8px 16px;
                             cursor: pointer;
                             border-radius: 4px;
-                            margin: 0 12px 20px 12px;
                         }
                         .push-button:hover {
                             background: #45a049;
-                        }
-                        .token-actions {
-                            display: flex;
-                            gap: 8px;
-                            margin-top: 8px;
                         }
                         .btn {
                             padding: 4px 8px;
@@ -97,81 +93,25 @@ class ZeropsProvider {
                         .btn:hover {
                             background: var(--vscode-button-hoverBackground);
                         }
-                        .token-section {
-                            margin-bottom: 15px;
+                        .token-display {
+                            padding: 5px;
+                            background: var(--vscode-input-background);
+                            border: 1px solid var(--vscode-input-border);
+                            border-radius: 2px;
                         }
-                        
-                        .token-header {
+                        .token-actions {
                             display: flex;
-                            align-items: center;
-                            gap: 4px;
-                            cursor: pointer;
-                            padding: 3px 8px;
-                            user-select: none;
-                            font-size: 11px;
-                            font-weight: 400;
-                            text-transform: uppercase;
-                            background-color: var(--vscode-activityBar-background);
-                            color: var(--vscode-activityBar-foreground);
-                        }
-
-                        .chevron {
-                            width: 16px;
-                            height: 16px;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            order: -1;
-                        }
-
-                        .chevron::after {
-                            content: "";
-                            width: 16px;
-                            height: 16px;
-                            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M10.072 8.024L5.715 3.667l.618-.62L11 7.716v.618L6.333 13l-.618-.619 4.357-4.357z' fill='%23C5C5C5'/%3E%3C/svg%3E");
-                            transform: rotate(0deg);
-                            transition: transform 0.2s;
-                        }
-
-                        .token-content {
-                            display: none;
-                            padding: 8px;
-                        }
-
-                        .token-content.show {
-                            display: block;
-                        }
-
-                        .token-header:has(+ .token-content.show) .chevron::after {
-                            transform: rotate(90deg);
-                        }
-
-                        .container {
-                            display: flex;
-                            flex-direction: column;
                             gap: 8px;
-                        }
-
-                        h2 {
-                            font-size: 11px;
-                            font-weight: 400;
-                            margin: 0;
-                            padding: 8px;
+                            margin-top: 4px;
                         }
                     </style>
                 </head>
                 <body>
                     <div class="container">
-                        <div class="divider"></div>
-                        <button class="push-button" id="pushButton">
-                            Push Changes
-                        </button>
+                        <h2>Zerops</h2>
                         <div class="token-section">
-                            <div class="token-header" id="tokenHeader">
-                                <div class="chevron"></div>
-                                <span>Access Token</span>
-                            </div>
-                            <div class="token-content" id="tokenContent">
+                            <label>Access Token</label>
+                            <div id="tokenInput-container" style="display: ${currentToken ? 'none' : 'block'}">
                                 <input 
                                     type="password" 
                                     class="token-input" 
@@ -183,22 +123,31 @@ class ZeropsProvider {
                                     <button class="btn" id="saveToken">Save Token</button>
                                 </div>
                             </div>
+                            <div id="tokenDisplay" style="display: ${currentToken ? 'block' : 'none'}">
+                                <div class="token-display">••••••••••••••••</div>
+                                <div class="token-actions">
+                                    <button class="btn" id="editBtn">Edit</button>
+                                </div>
+                            </div>
                         </div>
+                        <button class="push-button" id="pushButton">
+                            Push Changes
+                        </button>
                     </div>
 
                     <script>
                         const vscode = acquireVsCodeApi();
                         const tokenInput = document.getElementById('tokenInput');
+                        const tokenInputContainer = document.getElementById('tokenInput-container');
+                        const tokenDisplay = document.getElementById('tokenDisplay');
+                        const editBtn = document.getElementById('editBtn');
                         const saveBtn = document.getElementById('saveToken');
-                        const tokenHeader = document.getElementById('tokenHeader');
-                        const tokenContent = document.getElementById('tokenContent');
 
-                        // Toggle dropdown
-                        tokenHeader.addEventListener('click', () => {
-                            tokenContent.classList.toggle('show');
+                        editBtn.addEventListener('click', () => {
+                            tokenInputContainer.style.display = 'block';
+                            tokenDisplay.style.display = 'none';
                         });
 
-                        // Save token
                         saveBtn.addEventListener('click', () => {
                             const token = tokenInput.value;
                             if (token) {
@@ -206,6 +155,8 @@ class ZeropsProvider {
                                     command: 'saveToken',
                                     token: token
                                 });
+                                tokenInputContainer.style.display = 'none';
+                                tokenDisplay.style.display = 'block';
                             }
                         });
 
