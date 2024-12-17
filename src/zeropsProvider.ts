@@ -67,7 +67,7 @@ export class ZeropsProvider implements vscode.WebviewViewProvider {
                             display: flex;
                             flex-direction: column;
                             gap: 15px;
-                            padding-top: 16px;
+                            padding-top: 40px;
                         }
                         .token-section {
                             display: flex;
@@ -78,9 +78,10 @@ export class ZeropsProvider implements vscode.WebviewViewProvider {
                         .token-input {
                             width: 100%;
                             padding: 5px;
-                            background: var(--vscode-input-background);
-                            color: var(--vscode-input-foreground);
-                            border: 1px solid var(--vscode-input-border);
+                            background: var(--vscode-dropdown-background);
+                            color: var(--vscode-dropdown-foreground);
+                            border: 1px solid var(--vscode-dropdown-border);
+                            border-radius: 2px;
                         }
                         .push-button {
                             background: var(--vscode-button-background);
@@ -89,7 +90,6 @@ export class ZeropsProvider implements vscode.WebviewViewProvider {
                             padding: 8px 16px;
                             cursor: pointer;
                             border-radius: 4px;
-                            margin: 0 8px 16px 8px;
                         }
                         .push-button:hover {
                             background: var(--vscode-button-hoverBackground);
@@ -121,28 +121,29 @@ export class ZeropsProvider implements vscode.WebviewViewProvider {
                 </head>
                 <body>
                     <div class="container">
-                        <h2>Zerops</h2>
                         <button class="push-button" id="pushButton">
                             Push Changes
                         </button>
                         <div class="token-section">
                             <label>Access Token</label>
-                            <div id="tokenInput-container" style="display: ${currentToken ? 'none' : 'block'}">
+                            <select class="token-input" id="tokenSelect">
+                                <option value="" disabled selected>Select access token</option>
+                                ${currentToken ? `<option value="${currentToken}" selected>••••••••••••••••</option>` : ''}
+                            </select>
+                            <div class="token-actions">
+                                <button class="btn" id="editBtn">Edit</button>
+                                <button class="btn" id="addBtn">Add New</button>
+                            </div>
+                            <div id="tokenInput-container" style="display: none">
                                 <input 
                                     type="password" 
                                     class="token-input" 
                                     id="tokenInput" 
-                                    value="${currentToken}"
                                     placeholder="Enter your Zerops access token"
                                 />
                                 <div class="token-actions">
                                     <button class="btn" id="saveToken">Save Token</button>
-                                </div>
-                            </div>
-                            <div id="tokenDisplay" style="display: ${currentToken ? 'block' : 'none'}">
-                                <div class="token-display">••••••••••••••••</div>
-                                <div class="token-actions">
-                                    <button class="btn" id="editBtn">Edit</button>
+                                    <button class="btn" id="cancelBtn">Cancel</button>
                                 </div>
                             </div>
                         </div>
@@ -152,13 +153,19 @@ export class ZeropsProvider implements vscode.WebviewViewProvider {
                         const vscode = acquireVsCodeApi();
                         const tokenInput = document.getElementById('tokenInput');
                         const tokenInputContainer = document.getElementById('tokenInput-container');
-                        const tokenDisplay = document.getElementById('tokenDisplay');
+                        const tokenSelect = document.getElementById('tokenSelect');
                         const editBtn = document.getElementById('editBtn');
+                        const addBtn = document.getElementById('addBtn');
                         const saveBtn = document.getElementById('saveToken');
+                        const cancelBtn = document.getElementById('cancelBtn');
 
-                        editBtn.addEventListener('click', () => {
+                        addBtn.addEventListener('click', () => {
                             tokenInputContainer.style.display = 'block';
-                            tokenDisplay.style.display = 'none';
+                            tokenInput.value = '';
+                        });
+
+                        cancelBtn.addEventListener('click', () => {
+                            tokenInputContainer.style.display = 'none';
                         });
 
                         saveBtn.addEventListener('click', () => {
@@ -169,7 +176,12 @@ export class ZeropsProvider implements vscode.WebviewViewProvider {
                                     token: token
                                 });
                                 tokenInputContainer.style.display = 'none';
-                                tokenDisplay.style.display = 'block';
+                                // Add new option to select
+                                const option = document.createElement('option');
+                                option.value = token;
+                                option.text = '••••••••••••••••';
+                                option.selected = true;
+                                tokenSelect.appendChild(option);
                             }
                         });
 
