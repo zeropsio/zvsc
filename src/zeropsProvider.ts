@@ -59,7 +59,7 @@ export class ZeropsProvider implements vscode.WebviewViewProvider {
                 <head>
                     <style>
                         body { 
-                            padding: 10px;
+                            padding: 0;
                             color: var(--vscode-foreground);
                             font-family: var(--vscode-font-family);
                         }
@@ -67,11 +67,13 @@ export class ZeropsProvider implements vscode.WebviewViewProvider {
                             display: flex;
                             flex-direction: column;
                             gap: 15px;
+                            padding-top: 16px;
                         }
                         .token-section {
                             display: flex;
                             flex-direction: column;
                             gap: 8px;
+                            padding: 0 8px;
                         }
                         .token-input {
                             width: 100%;
@@ -81,15 +83,16 @@ export class ZeropsProvider implements vscode.WebviewViewProvider {
                             border: 1px solid var(--vscode-input-border);
                         }
                         .push-button {
-                            background: #4CAF50;
-                            color: white;
+                            background: var(--vscode-button-background);
+                            color: var(--vscode-button-foreground);
                             border: none;
                             padding: 8px 16px;
                             cursor: pointer;
                             border-radius: 4px;
+                            margin: 0 8px 16px 8px;
                         }
                         .push-button:hover {
-                            background: #45a049;
+                            background: var(--vscode-button-hoverBackground);
                         }
                         .btn {
                             padding: 4px 8px;
@@ -105,6 +108,7 @@ export class ZeropsProvider implements vscode.WebviewViewProvider {
                         .token-display {
                             padding: 5px;
                             background: var(--vscode-input-background);
+                            color: var(--vscode-input-foreground);
                             border: 1px solid var(--vscode-input-border);
                             border-radius: 2px;
                         }
@@ -118,6 +122,9 @@ export class ZeropsProvider implements vscode.WebviewViewProvider {
                 <body>
                     <div class="container">
                         <h2>Zerops</h2>
+                        <button class="push-button" id="pushButton">
+                            Push Changes
+                        </button>
                         <div class="token-section">
                             <label>Access Token</label>
                             <div id="tokenInput-container" style="display: ${currentToken ? 'none' : 'block'}">
@@ -139,9 +146,6 @@ export class ZeropsProvider implements vscode.WebviewViewProvider {
                                 </div>
                             </div>
                         </div>
-                        <button class="push-button" id="pushButton">
-                            Push Changes
-                        </button>
                     </div>
 
                     <script>
