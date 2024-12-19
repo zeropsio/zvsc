@@ -42,11 +42,23 @@
                     "description": "Zerops API Access Token"
                 }
             }
-        }
+        },
+        "commands": [
+            {
+                "command": "zerops.login",
+                "title": "Zerops: Login"
+            },
+            {
+                "command": "zerops.logout",
+                "title": "Zerops: Logout"
+            }
+        ]
     },
     "devDependencies": {
         "@types/vscode": "^1.60.0",
         "@types/node": "^14.17.0",
-        "typescript": "^4.4.3"
+        "typescript": "^4.4.3",
+        "node-fetch": "2.6.7",
+        "@types/node-fetch": "2.6.4"
     }
 }
