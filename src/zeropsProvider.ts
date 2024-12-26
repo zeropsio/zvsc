@@ -9,7 +9,7 @@ export class ZeropsProvider implements vscode.WebviewViewProvider, vscode.Dispos
         private readonly _extensionUri: vscode.Uri,
         private readonly _context: vscode.ExtensionContext
     ) {
-        this.initialize();
+        // Remove initialization from constructor
     }
 
     dispose() {
@@ -22,36 +22,68 @@ export class ZeropsProvider implements vscode.WebviewViewProvider, vscode.Dispos
     }
 
     private async initialize() {
+        if (!this._view) {
+            console.log('View not ready, skipping initialization');
+            return;
+        }
+
         try {
-            // Just check if we have a stored token
-            const isAuthenticated = await ZeropsApi.isAuthenticated();
+            console.log('Initializing Zerops provider...');
             
-            if (this._view) {
-                // Immediately update UI state
+            // Update UI to loading state first
+            this._view.webview.postMessage({
+                type: 'loading',
+                message: 'Checking authentication status...'
+            });
+
+            // Check authentication status
+            const isAuthenticated = await ZeropsApi.isAuthenticated();
+            console.log('Authentication status:', isAuthenticated);
+            
+            // Update UI with authentication state
+            this._view.webview.postMessage({
+                type: 'initializeState',
+                isAuthenticated
+            });
+
+            // If authenticated, fetch user info and projects
+            if (isAuthenticated) {
                 this._view.webview.postMessage({
-                    type: 'initializeState',
-                    isAuthenticated
+                    type: 'loading',
+                    message: 'Loading your data...'
                 });
 
-                // If authenticated, fetch user info and projects in parallel
-                if (isAuthenticated) {
-                    Promise.all([
+                try {
+                    const [userInfo, projects] = await Promise.all([
                         ZeropsApi.getUserInfo(),
                         ZeropsApi.getProjects()
-                    ]).then(([userInfo, projects]) => {
-                        // Send both updates at once
-                        this._view?.webview.postMessage({
-                            type: 'initialData',
-                            userInfo,
-                            projects
-                        });
-                    }).catch(error => {
-                        console.error('Failed to fetch initial data:', error);
+                    ]);
+                    console.log('Initial data fetched successfully');
+                    
+                    this._view.webview.postMessage({
+                        type: 'initialData',
+                        userInfo,
+                        projects
+                    });
+                } catch (error) {
+                    console.error('Failed to fetch initial data:', error);
+                    this._view.webview.postMessage({
+                        type: 'error',
+                        message: 'Failed to load initial data. Please try logging in again.'
                     });
                 }
+            } else {
+                // Not authenticated, show login form
+                this._view.webview.postMessage({
+                    type: 'showLogin'
+                });
             }
         } catch (error) {
             console.error('Failed to initialize:', error);
+            this._view.webview.postMessage({
+                type: 'error',
+                message: 'Failed to initialize Zerops extension. Please try again.'
+            });
         }
     }
 
@@ -68,6 +100,9 @@ export class ZeropsProvider implements vscode.WebviewViewProvider, vscode.Dispos
         };
 
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+
+        // Initialize after webview is ready
+        this.initialize();
 
         const messageHandler = webviewView.webview.onDidReceiveMessage(async (data) => {
             try {
@@ -121,26 +156,44 @@ export class ZeropsProvider implements vscode.WebviewViewProvider, vscode.Dispos
     }
 
     private async handleLogin(token: string, webviewView: vscode.WebviewView) {
-        const success = await ZeropsApi.login(token);
-        if (success) {
-            const userInfo = await ZeropsApi.getUserInfo();
-            webviewView.webview.postMessage({ 
-                type: 'loginResult', 
-                success,
-                userInfo,
-                message: 'Login successful!'
+        try {
+            webviewView.webview.postMessage({
+                type: 'loading',
+                message: 'Logging in...'
             });
 
-            const projects = await ZeropsApi.getProjects();
+            const success = await ZeropsApi.login(token);
+            if (success) {
+                const userInfo = await ZeropsApi.getUserInfo();
+                webviewView.webview.postMessage({ 
+                    type: 'loginResult', 
+                    success,
+                    userInfo,
+                    message: 'Login successful!'
+                });
+
+                webviewView.webview.postMessage({
+                    type: 'loading',
+                    message: 'Loading your projects...'
+                });
+
+                const projects = await ZeropsApi.getProjects();
+                webviewView.webview.postMessage({
+                    type: 'projectsLoaded',
+                    projects
+                });
+            } else {
+                webviewView.webview.postMessage({ 
+                    type: 'loginResult', 
+                    success,
+                    message: 'Login failed. Please check your token.'
+                });
+            }
+        } catch (error) {
+            console.error('Login error:', error);
             webviewView.webview.postMessage({
-                type: 'projectsLoaded',
-                projects
-            });
-        } else {
-            webviewView.webview.postMessage({ 
-                type: 'loginResult', 
-                success,
-                message: 'Login failed. Please check your token.'
+                type: 'error',
+                message: error instanceof Error ? error.message : 'Login failed. Please try again.'
             });
         }
     }
@@ -260,19 +313,33 @@ export class ZeropsProvider implements vscode.WebviewViewProvider, vscode.Dispos
                     #loadingIndicator {
                         text-align: center;
                         padding: 20px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 10px;
                     }
-                    .loading {
-                        color: #0098ff;
+                    .loading-spinner {
+                        width: 20px;
+                        height: 20px;
+                        border: 2px solid #f3f3f3;
+                        border-top: 2px solid #0098ff;
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                    }
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
                     }
                 </style>
             </head>
             <body>
                 <div class="container">
                     <div id="loadingIndicator">
+                        <div class="loading-spinner"></div>
                         <p class="loading">Initializing Zerops...</p>
                     </div>
 
-                    <div id="loginForm">
+                    <div id="loginForm" style="display: none;">
                         <div class="input-group">
                             <label>Access Token:</label>
                             <input type="password" id="tokenInput" placeholder="Enter your Zerops access token">
@@ -295,7 +362,7 @@ export class ZeropsProvider implements vscode.WebviewViewProvider, vscode.Dispos
                         </div>
                     </div>
 
-                    <div id="message" class="message"></div>
+                    <div id="message" class="message" style="display: none;"></div>
 
                     <div id="projectsList" style="display: none;">
                         <h3>Your Projects</h3>
@@ -318,35 +385,46 @@ export class ZeropsProvider implements vscode.WebviewViewProvider, vscode.Dispos
                         const projectsList = document.getElementById('projectsList');
                         const projectsContainer = document.getElementById('projectsContainer');
 
-                        // Initialize all forms as hidden
-                        loginForm.style.display = 'none';
-                        tokenDisplay.style.display = 'none';
-                        projectsList.style.display = 'none';
-                        messageDiv.style.display = 'none';
+                        function showLoading(message = 'Loading...') {
+                            loadingIndicator.style.display = 'flex';
+                            loadingIndicator.querySelector('p').textContent = message;
+                            loginForm.style.display = 'none';
+                            tokenDisplay.style.display = 'none';
+                            projectsList.style.display = 'none';
+                            messageDiv.style.display = 'none';
+                        }
+
+                        function hideLoading() {
+                            loadingIndicator.style.display = 'none';
+                        }
 
                         function updateDisplay(hasToken) {
-                            loadingIndicator.style.display = 'none';
+                            hideLoading();
                             loginForm.style.display = hasToken ? 'none' : 'block';
                             tokenDisplay.style.display = hasToken ? 'block' : 'none';
+                            messageDiv.style.display = 'none';
+                        }
+
+                        function showMessage(text, type = 'info') {
+                            messageDiv.textContent = text;
+                            messageDiv.className = \`message \${type}\`;
                             messageDiv.style.display = 'block';
                         }
 
                         function handleLogin() {
                             const token = tokenInput.value;
                             if (!token) {
-                                messageDiv.textContent = 'Please enter an access token';
-                                messageDiv.className = 'message error';
+                                showMessage('Please enter an access token', 'error');
                                 return;
                             }
 
                             loginButton.disabled = true;
-                            messageDiv.textContent = 'Connecting to Zerops...';
-                            messageDiv.className = 'message loading';
-
+                            showLoading('Connecting to Zerops...');
                             vscode.postMessage({ type: 'login', token });
                         }
 
                         function handleProjectClick(projectId) {
+                            showLoading('Loading project details...');
                             vscode.postMessage({ type: 'getProjectDetails', projectId });
                         }
 
@@ -358,7 +436,7 @@ export class ZeropsProvider implements vscode.WebviewViewProvider, vscode.Dispos
                                     <p>\${project.description || ''}</p>
                                 </div>\`
                             ).join('');
-                            document.getElementById('projectsList').style.display = 'block';
+                            projectsList.style.display = 'block';
                         }
 
                         // Event Listeners
@@ -366,18 +444,19 @@ export class ZeropsProvider implements vscode.WebviewViewProvider, vscode.Dispos
 
                         editButton.addEventListener('click', () => {
                             updateDisplay(false);
-                            messageDiv.textContent = '';
+                            messageDiv.style.display = 'none';
                         });
 
                         cancelButton.addEventListener('click', () => {
                             updateDisplay(true);
                             tokenInput.value = '';
-                            messageDiv.textContent = '';
+                            messageDiv.style.display = 'none';
                         });
 
                         deleteButton.addEventListener('click', () => {
                             const confirmDelete = confirm('Are you sure you want to delete your token? This cannot be undone.');
                             if (confirmDelete) {
+                                showLoading('Deleting token...');
                                 vscode.postMessage({ type: 'deleteToken' });
                             }
                         });
@@ -387,19 +466,22 @@ export class ZeropsProvider implements vscode.WebviewViewProvider, vscode.Dispos
                             const message = event.data;
                             switch (message.type) {
                                 case 'initializeState':
-                                    loadingIndicator.style.display = 'none';
                                     updateDisplay(message.isAuthenticated);
+                                    if (!message.isAuthenticated) {
+                                        showMessage('Please log in to continue', 'info');
+                                    }
                                     break;
 
                                 case 'initialData':
+                                    hideLoading();
                                     updateUserInfo(message.userInfo);
                                     renderProjects(message.projects);
                                     break;
 
                                 case 'loginResult':
                                     loginButton.disabled = false;
-                                    messageDiv.textContent = message.message;
-                                    messageDiv.className = 'message ' + (message.success ? 'success' : 'error');
+                                    hideLoading();
+                                    showMessage(message.message, message.success ? 'success' : 'error');
                                     
                                     if (message.success) {
                                         tokenInput.value = '';
@@ -407,13 +489,15 @@ export class ZeropsProvider implements vscode.WebviewViewProvider, vscode.Dispos
                                         updateUserInfo(message.userInfo);
                                     }
                                     break;
+
                                 case 'error':
-                                    messageDiv.textContent = message.message;
-                                    messageDiv.className = 'message error';
+                                    hideLoading();
+                                    showMessage(message.message, 'error');
                                     break;
+
                                 case 'tokenDeleted':
-                                    messageDiv.textContent = 'Token has been deleted';
-                                    messageDiv.className = 'message success';
+                                    hideLoading();
+                                    showMessage('Token has been deleted', 'success');
                                     updateDisplay(false);
                                     updateUserInfo(null);
                                     break;

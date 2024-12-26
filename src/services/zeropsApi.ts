@@ -1,14 +1,74 @@
-import fetch, { HeadersInit, RequestInit, Headers } from 'node-fetch';
 import * as vscode from 'vscode';
+import * as https from 'https';
+import { URL } from 'url';
+import { Agent } from 'http';
 
 interface AuthResponse {
     token: string;
     user: UserInfo;
 }
 
+interface Avatar {
+    largeAvatarUrl: string | null;
+    smallAvatarUrl: string | null;
+    externalAvatarUrl: string | null;
+}
+
+interface Language {
+    id: string;
+    name: string;
+}
+
+interface BillingInfo {
+    vatNumber: string | null;
+    companyNumber: string | null;
+    companyName: string;
+    invoiceAddressStreet: string;
+    invoiceAddressCity: string;
+    invoiceAddressPostcode: string;
+    invoiceAddressCountryId: string;
+    vatCountryId: string;
+    vatMode: string;
+    vatRate: number;
+    vatVerified: boolean;
+}
+
+interface Client {
+    id: string;
+    accountName: string;
+    avatar: Avatar | null;
+    billingInfo: BillingInfo;
+    paymentProviderClientId: string;
+    verifiedByTopUp: boolean;
+    verifiedManually: boolean;
+}
+
+interface ClientUser {
+    id: string;
+    clientId: string;
+    userId: string;
+    status: string;
+    roleCode: string;
+    client: Client;
+    user: UserInfo;
+}
+
 interface UserInfo {
-    fullName: string;
+    id: string;
     email: string;
+    fullName: string;
+    firstName: string;
+    lastName: string;
+    avatar: Avatar;
+    countryCallingCode: string | null;
+    phoneNumber: string | null;
+    language?: Language;
+    created?: string;
+    lastUpdate?: string;
+    status?: string;
+    clientUserList?: ClientUser[];
+    passwordIsSet?: boolean;
+    intercomHash?: string;
 }
 
 interface Project {
@@ -19,6 +79,56 @@ interface Project {
 
 interface ProjectResponse {
     items: Project[];
+}
+
+interface Region {
+    name: string;
+    address: string;
+    isDefault: boolean;
+}
+
+interface Config {
+    endpoint: string;
+    timeout?: number;
+    maxRetries?: number;
+    region?: Region;
+}
+
+interface NetworkError extends Error {
+    code?: string;
+    errno?: number;
+    syscall?: string;
+}
+
+type ConfigOption = (config: Config) => void;
+
+function withCustomEndpoint(endpoint: string): ConfigOption {
+    return (config: Config) => {
+        config.endpoint = endpoint;
+    };
+}
+
+function withTimeout(timeout: number): ConfigOption {
+    return (config: Config) => {
+        config.timeout = timeout;
+    };
+}
+
+function withMaxRetries(maxRetries: number): ConfigOption {
+    return (config: Config) => {
+        config.maxRetries = maxRetries;
+    };
+}
+
+function defaultConfig(...options: ConfigOption[]): Config {
+    const config: Config = {
+        endpoint: 'https://api.app-prg1.zerops.io',  // Base URL
+        timeout: 30000,
+        maxRetries: 2
+    };
+    
+    options.forEach(option => option(config));
+    return config;
 }
 
 class ZeropsError extends Error {
@@ -32,31 +142,90 @@ class ZeropsError extends Error {
     }
 }
 
-class ZeropsClient {
-    private baseUrl: string = 'https://api.app.zerops.io';
-    private headers: HeadersInit;
-    private timeout: number;
-
-    constructor(token?: string, timeout: number = 30000) {
-        this.timeout = timeout;
-        this.headers = {
-            'Content-Type': 'application/json',
-            'Support-ID': this.generateSupportId()
+async function makeRequest<T>(url: string, options: https.RequestOptions, data?: any): Promise<T> {
+    return new Promise((resolve, reject) => {
+        const urlObj = new URL(url);
+        const requestOptions: https.RequestOptions = {
+            hostname: urlObj.hostname,
+            path: urlObj.pathname + urlObj.search,
+            port: 443,
+            method: options.method || 'GET',
+            headers: options.headers
         };
+
+        console.log('Making request to:', url);
+        console.log('Request options:', requestOptions);
+
+        const req = https.request(requestOptions, res => {
+            let data = '';
+            
+            // Handle redirects like in the fetch example
+            if (res.statusCode === 301) {
+                console.error('Redirected URL:', res.headers.location);
+                const redirectUrl = res.headers.location;
+                if (redirectUrl) {
+                    return makeRequest<T>(redirectUrl, options, data)
+                        .then(resolve)
+                        .catch(reject);
+                }
+            }
+            
+            res.on('data', chunk => {
+                data += chunk;
+            });
+
+            res.on('end', () => {
+                console.log('Response status:', res.statusCode);
+                console.log('Response headers:', res.headers);
+                console.log('Response data:', data);
+
+                if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+                    try {
+                        resolve(data ? JSON.parse(data) : undefined);
+                    } catch (e) {
+                        resolve(data as T);
+                    }
+                } else {
+                    reject(new Error(`HTTP Error: ${res.statusCode} - ${data}`));
+                }
+            });
+        });
+
+        req.on('error', error => {
+            console.error('Request error:', error);
+            reject(error);
+        });
+
+        if (data) {
+            const body = typeof data === 'string' ? data : JSON.stringify(data);
+            req.write(body);
+        }
+
+        req.end();
+    });
+}
+
+class ZeropsClient {
+    private config: Config;
+    private headers: { [key: string]: string };
+    private token?: string;
+
+    constructor(token?: string, ...options: ConfigOption[]) {
+        this.config = defaultConfig(...options);
+        this.token = token;
+        
+        // Match headers exactly with working example
+        this.headers = {
+            'Accept': 'application/json, text/plain, */*'
+        };
+        
         if (token) {
             this.setToken(token);
         }
     }
 
-    setToken(token: string) {
-        this.headers = {
-            ...this.headers,
-            'Authorization': `Bearer ${token}`
-        };
-    }
-
-    private generateSupportId(): string {
-        return Math.random().toString(36).substring(2, 15);
+    private getApiUrl(): string {
+        return `${this.config.endpoint}/api/rest/public`;  // Added /public to match working URL
     }
 
     private async doRequest<T>(
@@ -64,72 +233,59 @@ class ZeropsClient {
         endpoint: string,
         options: {
             body?: any;
-            contentType?: string;
-            contentLength?: number;
         } = {}
     ): Promise<T> {
-        const url = `${this.baseUrl}${endpoint}`;
-        
-        // Create a new headers object
-        const headers = new Headers(this.headers);
-
-        if (options.contentType) {
-            headers.set('Content-Type', options.contentType);
+        if (!this.token) {
+            throw new Error('API token is required for this operation');
         }
 
-        const requestInit: RequestInit = {
+        const url = `${this.getApiUrl()}/${endpoint.replace(/^\/+/, '')}`;
+        
+        const requestOptions: https.RequestOptions = {
             method,
-            headers,
-            timeout: this.timeout
+            headers: this.headers
         };
 
-        if (options.body) {
-            requestInit.body = typeof options.body === 'string' 
-                ? options.body 
-                : JSON.stringify(options.body);
+        try {
+            return await makeRequest<T>(url, requestOptions, options.body);
+        } catch (error) {
+            console.error('Request failed:', error);
+            throw error;
         }
-
-        if (options.contentLength) {
-            headers.set('Content-Length', options.contentLength.toString());
-        }
-
-        const response = await fetch(url, requestInit);
-        const responseBody = await response.text();
-
-        if (!response.ok) {
-            throw new ZeropsError(
-                `Request failed: ${response.statusText}`,
-                response.status,
-                responseBody
-            );
-        }
-
-        // Only parse as JSON if there's content and it's JSON
-        if (responseBody && response.headers.get('content-type')?.includes('application/json')) {
-            return JSON.parse(responseBody);
-        }
-
-        return responseBody as T;
     }
 
     async getUserInfo(): Promise<UserInfo> {
-        return this.doRequest<UserInfo>('GET', '/api/rest/user/info');
+        return this.doRequest<UserInfo>('GET', 'user/info');
     }
 
     async getProjects(): Promise<Project[]> {
-        const response = await this.doRequest<ProjectResponse>('GET', '/api/rest/project');
-        return response.items;
+        return this.doRequest<ProjectResponse>('GET', 'project')
+            .then(response => response.items);
     }
 
     async getProjectDetails(projectId: string): Promise<Project> {
-        return this.doRequest<Project>('GET', `/api/rest/project/${projectId}`);
+        return this.doRequest<Project>('GET', `project/${projectId}`);
     }
 
-    async validateToken(): Promise<boolean> {
+    setToken(token: string) {
+        this.token = token;
+        this.headers['Authorization'] = `Bearer ${token.trim()}`;
+    }
+
+    hasToken(): boolean {
+        return !!this.token;
+    }
+
+    async login(): Promise<boolean> {
+        if (!this.token) {
+            throw new Error('Token is required for login');
+        }
+
         try {
-            await this.getUserInfo();
-            return true;
+            const userInfo = await this.getUserInfo();
+            return !!userInfo;
         } catch (error) {
+            console.error('Login validation failed:', error);
             return false;
         }
     }
@@ -138,19 +294,24 @@ class ZeropsClient {
 export class ZeropsApi {
     private static client?: ZeropsClient;
     private static context?: vscode.ExtensionContext;
+    private static config: Config;
 
-    static async initialize(context: vscode.ExtensionContext) {
+    static async initialize(context: vscode.ExtensionContext, ...options: ConfigOption[]) {
         this.context = context;
+        this.config = defaultConfig(...options);
+        
         const token = context.globalState.get<string>('zeropsToken');
+        const region = context.globalState.get<Region>('zeropsRegion');
+        
         if (token) {
-            this.client = new ZeropsClient(token);
-            try {
-                await this.client.validateToken();
-            } catch (error) {
-                // Token is invalid, clear it
-                await this.deleteToken();
-            }
+            this.client = new ZeropsClient(token, 
+                withCustomEndpoint(region ? `https://${region.address}` : this.config.endpoint)
+            );
         }
+    }
+
+    static async isAuthenticated(): Promise<boolean> {
+        return !!this.client?.hasToken();
     }
 
     static async login(token?: string): Promise<boolean> {
@@ -170,17 +331,29 @@ export class ZeropsApi {
             throw new Error('Access token is required');
         }
 
-        try {
-            this.client = new ZeropsClient(token);
-            await this.client.validateToken();
-            
-            // Store token if valid
-            await this.context?.globalState.update('zeropsToken', token);
-            return true;
-        } catch (error) {
-            this.handleError(error);
-            return false;
+        // Create client with default region first
+        this.client = new ZeropsClient(token, 
+            withCustomEndpoint(this.config.endpoint)
+        );
+
+        // First try to login
+        const loginSuccess = await this.client.login();
+        if (!loginSuccess) {
+            throw new Error('Login failed');
         }
+
+        // Then get user info
+        const userInfo = await this.client.getUserInfo();
+        
+        // Store token and user info
+        await this.context?.globalState.update('zeropsToken', token);
+        await this.context?.globalState.update('zeropsUserInfo', userInfo);
+        
+        vscode.window.showInformationMessage(
+            `Login successful! Welcome ${userInfo.fullName} (${userInfo.email})`
+        );
+        
+        return true;
     }
 
     static async deleteToken(): Promise<void> {
@@ -217,40 +390,5 @@ export class ZeropsApi {
             throw new Error('Not authenticated. Please login first.');
         }
         return this.client.getUserInfo();
-    }
-
-    static async isAuthenticated(): Promise<boolean> {
-        if (!this.client) {
-            return false;
-        }
-        try {
-            await this.client.validateToken();
-            return true;
-        } catch {
-            return false;
-        }
-    }
-
-    private static handleError(error: unknown): never {
-        if (error instanceof ZeropsError) {
-            switch (error.status) {
-                case 401:
-                    throw new Error('Authentication failed. Please login again.');
-                case 403:
-                    throw new Error('Access denied. Please check your permissions.');
-                case 404:
-                    throw new Error('Resource not found.');
-                case 429:
-                    throw new Error('Too many requests. Please try again later.');
-                default:
-                    throw new Error(`API Error (${error.status}): ${error.message}`);
-            }
-        }
-        
-        if (error instanceof Error) {
-            throw error;
-        }
-        
-        throw new Error('An unexpected error occurred');
     }
 } 
