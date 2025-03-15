@@ -1,15 +1,14 @@
-import * as vscode from 'vscode';
-import { CliService } from './services/cliService';
-
-export class ZeropsProvider implements vscode.WebviewViewProvider, vscode.Disposable {
-    private _view?: vscode.WebviewView;
-    private _disposables: vscode.Disposable[] = [];
-
-    constructor(
-        private readonly _extensionUri: vscode.Uri,
-        private readonly _context: vscode.ExtensionContext
-    ) {}
-
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ZeropsProvider = void 0;
+const vscode = require("vscode");
+const cliService_1 = require("./services/cliService");
+class ZeropsProvider {
+    constructor(_extensionUri, _context) {
+        this._extensionUri = _extensionUri;
+        this._context = _context;
+        this._disposables = [];
+    }
     dispose() {
         while (this._disposables.length) {
             const disposable = this._disposables.pop();
@@ -18,57 +17,49 @@ export class ZeropsProvider implements vscode.WebviewViewProvider, vscode.Dispos
             }
         }
     }
-
-    public async refresh() {
+    async refresh() {
         // Nothing to refresh
     }
-
-    async resolveWebviewView(
-        webviewView: vscode.WebviewView,
-        context: vscode.WebviewViewResolveContext,
-        token: vscode.CancellationToken
-    ) {
+    async resolveWebviewView(webviewView, context, token) {
         this._view = webviewView;
-
         webviewView.webview.options = {
             enableScripts: true,
             localResourceRoots: [this._extensionUri]
         };
-
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
         this._setWebviewMessageListener(webviewView.webview);
     }
-
-    private _setWebviewMessageListener(webview: vscode.Webview) {
-        webview.onDidReceiveMessage(async (message: any) => {
+    _setWebviewMessageListener(webview) {
+        webview.onDidReceiveMessage(async (message) => {
             const { command } = message;
-
             switch (command) {
                 case 'pushToService':
                     const serviceId = message.serviceId;
                     console.log(`Starting push to service ${serviceId}`);
-                    
                     try {
-                        await CliService.pushToService(message.serviceId, {
+                        await cliService_1.CliService.pushToService(message.serviceId, {
                             deployGitFolder: message.deployGitFolder
                         });
                         webview.postMessage({ command: 'pushComplete' });
                         vscode.window.showInformationMessage('Successfully pushed changes to service');
-                    } catch (error) {
+                    }
+                    catch (error) {
                         console.error('Failed to push:', error);
                         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
                         webview.postMessage({ command: 'pushError', message: errorMessage });
                         if (errorMessage !== 'Push cancelled by user') {
                             vscode.window.showErrorMessage(`Failed to push: ${errorMessage}`);
                         }
-                    } finally {
+                    }
+                    finally {
                         webview.postMessage({ command: 'resetButton' });
                     }
                     break;
                 case 'cancelPush':
                     try {
-                        await CliService.cancelPush();
-                    } catch (error) {
+                        await cliService_1.CliService.cancelPush();
+                    }
+                    catch (error) {
                         // Cancellation was successful, reset the UI
                         webview.postMessage({ command: 'resetButton' });
                         webview.postMessage({ command: 'pushError', message: 'Push cancelled by user' });
@@ -77,8 +68,7 @@ export class ZeropsProvider implements vscode.WebviewViewProvider, vscode.Dispos
             }
         });
     }
-
-    private _getHtmlForWebview(webview: vscode.Webview): string {
+    _getHtmlForWebview(webview) {
         return `<!DOCTYPE html>
             <html lang="en">
             <head>
@@ -231,4 +221,6 @@ export class ZeropsProvider implements vscode.WebviewViewProvider, vscode.Dispos
             </body>
             </html>`;
     }
-} 
+}
+exports.ZeropsProvider = ZeropsProvider;
+//# sourceMappingURL=zeropsProvider.js.map

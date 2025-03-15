@@ -10,6 +10,9 @@ A Visual Studio Code extension for interacting with Zerops.
 - Delete a project on Zerops
 - Initialize zerops.yml file
 
+## Technical Details
+
+This extension uses the official Zerops API SDK to interact with the Zerops platform, ensuring reliable and type-safe operations.
 
 ## Commands
 

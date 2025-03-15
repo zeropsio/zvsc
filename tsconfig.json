@@ -6,7 +6,14 @@
         "lib": ["ES2020"],
         "sourceMap": true,
         "rootDir": "src",
-        "strict": true
+        "strict": true,
+        "typeRoots": [
+            "./node_modules/@types",
+            "./src/types"
+        ]
     },
-    "exclude": ["node_modules", ".vscode-test"]
+    "exclude": ["node_modules", ".vscode-test"],
+    "include": [
+        "src/**/*"
+    ]
 } 
