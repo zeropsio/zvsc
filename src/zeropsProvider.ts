@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ZeropsApi } from './services/zeropsApi';
+import { CliService } from './services/cliService';
 
 export class ZeropsProvider implements vscode.WebviewViewProvider, vscode.Disposable {
     private _view?: vscode.WebviewView;
@@ -8,9 +8,7 @@ export class ZeropsProvider implements vscode.WebviewViewProvider, vscode.Dispos
     constructor(
         private readonly _extensionUri: vscode.Uri,
         private readonly _context: vscode.ExtensionContext
-    ) {
-        // Remove initialization from constructor
-    }
+    ) {}
 
     dispose() {
         while (this._disposables.length) {
@@ -21,76 +19,14 @@ export class ZeropsProvider implements vscode.WebviewViewProvider, vscode.Dispos
         }
     }
 
-    private async initialize() {
-        if (!this._view) {
-            console.log('View not ready, skipping initialization');
-            return;
-        }
-
-        try {
-            console.log('Initializing Zerops provider...');
-            
-            // Update UI to loading state first
-            this._view.webview.postMessage({
-                type: 'loading',
-                message: 'Checking authentication status...'
-            });
-
-            // Check authentication status
-            const isAuthenticated = await ZeropsApi.isAuthenticated();
-            console.log('Authentication status:', isAuthenticated);
-            
-            // Update UI with authentication state
-            this._view.webview.postMessage({
-                type: 'initializeState',
-                isAuthenticated
-            });
-
-            // If authenticated, fetch user info and projects
-            if (isAuthenticated) {
-                this._view.webview.postMessage({
-                    type: 'loading',
-                    message: 'Loading your data...'
-                });
-
-                try {
-                    const [userInfo, projects] = await Promise.all([
-                        ZeropsApi.getUserInfo(),
-                        ZeropsApi.getProjects()
-                    ]);
-                    console.log('Initial data fetched successfully');
-                    
-                    this._view.webview.postMessage({
-                        type: 'initialData',
-                        userInfo,
-                        projects
-                    });
-                } catch (error) {
-                    console.error('Failed to fetch initial data:', error);
-                    this._view.webview.postMessage({
-                        type: 'error',
-                        message: 'Failed to load initial data. Please try logging in again.'
-                    });
-                }
-            } else {
-                // Not authenticated, show login form
-                this._view.webview.postMessage({
-                    type: 'showLogin'
-                });
-            }
-        } catch (error) {
-            console.error('Failed to initialize:', error);
-            this._view.webview.postMessage({
-                type: 'error',
-                message: 'Failed to initialize Zerops extension. Please try again.'
-            });
-        }
+    public async refresh() {
+        // Nothing to refresh
     }
 
-    resolveWebviewView(
+    async resolveWebviewView(
         webviewView: vscode.WebviewView,
-        _context: vscode.WebviewViewResolveContext,
-        _token: vscode.CancellationToken,
+        context: vscode.WebviewViewResolveContext,
+        token: vscode.CancellationToken
     ) {
         this._view = webviewView;
 
@@ -100,424 +36,197 @@ export class ZeropsProvider implements vscode.WebviewViewProvider, vscode.Dispos
         };
 
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+        this._setWebviewMessageListener(webviewView.webview);
+    }
 
-        // Initialize after webview is ready
-        this.initialize();
+    private _setWebviewMessageListener(webview: vscode.Webview) {
+        webview.onDidReceiveMessage(async (message: any) => {
+            const { command } = message;
 
-        const messageHandler = webviewView.webview.onDidReceiveMessage(async (data) => {
-            try {
-                await this.handleMessage(data, webviewView);
-            } catch (error) {
-                this.handleError(error, webviewView);
+            switch (command) {
+                case 'pushToService':
+                    const serviceId = message.serviceId;
+                    console.log(`Starting push to service ${serviceId}`);
+                    
+                    try {
+                        await CliService.pushToService(message.serviceId, {
+                            deployGitFolder: message.deployGitFolder
+                        });
+                        webview.postMessage({ command: 'pushComplete' });
+                        vscode.window.showInformationMessage('Successfully pushed changes to service');
+                    } catch (error) {
+                        console.error('Failed to push:', error);
+                        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+                        webview.postMessage({ command: 'pushError', message: errorMessage });
+                        if (errorMessage !== 'Push cancelled by user') {
+                            vscode.window.showErrorMessage(`Failed to push: ${errorMessage}`);
+                        }
+                    } finally {
+                        webview.postMessage({ command: 'resetButton' });
+                    }
+                    break;
+                case 'cancelPush':
+                    try {
+                        await CliService.cancelPush();
+                    } catch (error) {
+                        // Cancellation was successful, reset the UI
+                        webview.postMessage({ command: 'resetButton' });
+                        webview.postMessage({ command: 'pushError', message: 'Push cancelled by user' });
+                    }
+                    break;
             }
-        });
-
-        this._disposables.push(messageHandler);
-    }
-
-    private registerMessageHandlers(webviewView: vscode.WebviewView) {
-        webviewView.webview.onDidReceiveMessage(async (data) => {
-            try {
-                await this.handleMessage(data, webviewView);
-            } catch (error) {
-                this.handleError(error, webviewView);
-            }
-        });
-    }
-
-    private async handleMessage(data: any, webviewView: vscode.WebviewView) {
-        switch (data.type) {
-            case 'login':
-                await this.handleLogin(data.token, webviewView);
-                break;
-
-            case 'getProjects':
-                await this.handleGetProjects(webviewView);
-                break;
-
-            case 'getProjectDetails':
-                await this.handleGetProjectDetails(data.projectId, webviewView);
-                break;
-
-            case 'editMode':
-                webviewView.webview.postMessage({ type: 'showEditMode' });
-                break;
-
-            case 'deleteToken':
-                await ZeropsApi.deleteToken();
-                webviewView.webview.postMessage({
-                    type: 'tokenDeleted'
-                });
-                break;
-
-            default:
-                console.warn('Unknown message type:', data.type);
-        }
-    }
-
-    private async handleLogin(token: string, webviewView: vscode.WebviewView) {
-        try {
-            webviewView.webview.postMessage({
-                type: 'loading',
-                message: 'Logging in...'
-            });
-
-            const success = await ZeropsApi.login(token);
-            if (success) {
-                const userInfo = await ZeropsApi.getUserInfo();
-                webviewView.webview.postMessage({ 
-                    type: 'loginResult', 
-                    success,
-                    userInfo,
-                    message: 'Login successful!'
-                });
-
-                webviewView.webview.postMessage({
-                    type: 'loading',
-                    message: 'Loading your projects...'
-                });
-
-                const projects = await ZeropsApi.getProjects();
-                webviewView.webview.postMessage({
-                    type: 'projectsLoaded',
-                    projects
-                });
-            } else {
-                webviewView.webview.postMessage({ 
-                    type: 'loginResult', 
-                    success,
-                    message: 'Login failed. Please check your token.'
-                });
-            }
-        } catch (error) {
-            console.error('Login error:', error);
-            webviewView.webview.postMessage({
-                type: 'error',
-                message: error instanceof Error ? error.message : 'Login failed. Please try again.'
-            });
-        }
-    }
-
-    private async handleGetProjects(webviewView: vscode.WebviewView) {
-        const projects = await ZeropsApi.getProjects();
-        webviewView.webview.postMessage({
-            type: 'projectsLoaded',
-            projects
-        });
-    }
-
-    private async handleGetProjectDetails(projectId: string, webviewView: vscode.WebviewView) {
-        const projectDetails = await ZeropsApi.getProjectDetails(projectId);
-        webviewView.webview.postMessage({
-            type: 'projectDetailsLoaded',
-            project: projectDetails
-        });
-    }
-
-    private handleError(error: unknown, webviewView: vscode.WebviewView) {
-        const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
-        console.error('Zerops provider error:', error);
-        
-        webviewView.webview.postMessage({
-            type: 'error',
-            message: errorMessage
         });
     }
 
     private _getHtmlForWebview(webview: vscode.Webview): string {
-        return /*html*/`<!DOCTYPE html>
+        return `<!DOCTYPE html>
             <html lang="en">
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
-                <title>Zerops</title>
+                <title>Zerops Push</title>
                 <style>
-                    .container { padding: 20px; }
-                    .input-group { margin-bottom: 10px; }
-                    input { width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ccc; border-radius: 4px; }
-                    .button-group { display: flex; gap: 10px; margin-top: 10px; }
-                    button { 
-                        padding: 8px 16px;
-                        cursor: pointer;
-                        border: none;
+                    body {
+                        padding: 1rem;
+                        color: var(--vscode-foreground);
+                        font-family: var(--vscode-font-family);
+                    }
+                    .header {
+                        margin-bottom: 1.5rem;
+                    }
+                    .push-form {
+                        padding: 1rem;
+                        border: 1px solid var(--vscode-widget-border);
                         border-radius: 4px;
+                    }
+                    .form-group {
+                        margin-bottom: 1rem;
+                    }
+                    .form-group label {
+                        display: block;
+                        margin-bottom: 0.5rem;
                         font-weight: 500;
                     }
-                    .primary-button {
-                        background-color: #0098ff;
-                        color: white;
+                    .form-group input[type="text"] {
+                        width: 100%;
+                        padding: 0.5rem;
+                        background: var(--vscode-input-background);
+                        color: var(--vscode-input-foreground);
+                        border: 1px solid var(--vscode-input-border);
+                        border-radius: 4px;
                     }
-                    .secondary-button {
-                        background-color: #f0f0f0;
-                        color: #333;
+                    .form-group input[type="checkbox"] {
+                        margin-right: 0.5rem;
                     }
-                    button:disabled {
+                    .form-row {
+                        display: flex;
+                        align-items: center;
+                        margin-bottom: 0.5rem;
+                    }
+                    .button {
+                        width: 100%;
+                        background: #54AEA3;
+                        color: var(--vscode-button-foreground);
+                        border: none;
+                        padding: 0.75rem;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 14px;
+                        font-weight: 500;
+                        margin-top: 1rem;
+                    }
+                    .button:hover {
+                        background: #489690;
+                    }
+                    .required {
+                        color: var(--vscode-errorForeground);
+                        margin-left: 0.25rem;
+                    }
+                    .button:disabled {
                         opacity: 0.6;
                         cursor: not-allowed;
                     }
-                    .message { margin-top: 10px; padding: 8px; border-radius: 4px; }
-                    .error { color: #f44336; background: #ffebee; }
-                    .success { color: #4caf50; background: #e8f5e9; }
-                    .loading { color: #2196f3; background: #e3f2fd; }
-                    #loginForm { display: none; }
-                    #tokenDisplay { display: none; }
-                    .token-display {
-                        margin: 20px 0;
-                        padding: 10px;
-                        background: #f5f5f5;
+                    .status {
+                        margin-top: 1rem;
+                        padding: 0.5rem;
                         border-radius: 4px;
                     }
-                    .project-item {
-                        padding: 10px;
-                        margin: 10px 0;
-                        border: 1px solid #ccc;
-                        border-radius: 4px;
-                        cursor: pointer;
+                    .status.error {
+                        background: #ff000015;
+                        border: 1px solid #ff000030;
+                        color: #ff4444;
                     }
-                    .project-item:hover {
-                        background-color: #f5f5f5;
-                    }
-                    .project-item h4 {
-                        margin: 0 0 5px 0;
-                    }
-                    .project-item p {
-                        margin: 0;
-                        font-size: 0.9em;
-                        color: #666;
-                    }
-                    .danger-button {
-                        background-color: #dc3545;
-                        color: white;
-                    }
-                    .danger-button:hover {
-                        background-color: #c82333;
+                    .status.success {
+                        background: #00ff0015;
+                        border: 1px solid #00ff0030;
+                        color: #44ff44;
                     }
                     .button-group {
-                        display: flex;
-                        gap: 8px;
-                    }
-                    .user-info {
-                        margin-bottom: 10px;
-                        padding: 10px;
-                        background: #f8f9fa;
-                        border-radius: 4px;
-                    }
-                    .user-info p {
-                        margin: 4px 0;
-                    }
-                    .user-email {
-                        color: #666;
-                        font-size: 0.9em;
-                    }
-                    #loadingIndicator {
-                        text-align: center;
-                        padding: 20px;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        gap: 10px;
-                    }
-                    .loading-spinner {
-                        width: 20px;
-                        height: 20px;
-                        border: 2px solid #f3f3f3;
-                        border-top: 2px solid #0098ff;
-                        border-radius: 50%;
-                        animation: spin 1s linear infinite;
-                    }
-                    @keyframes spin {
-                        0% { transform: rotate(0deg); }
-                        100% { transform: rotate(360deg); }
+                        margin-top: 1rem;
                     }
                 </style>
             </head>
             <body>
-                <div class="container">
-                    <div id="loadingIndicator">
-                        <div class="loading-spinner"></div>
-                        <p class="loading">Initializing Zerops...</p>
-                    </div>
+                <div id="app">
 
-                    <div id="loginForm" style="display: none;">
-                        <div class="input-group">
-                            <label>Access Token:</label>
-                            <input type="password" id="tokenInput" placeholder="Enter your Zerops access token">
+                    <div class="push-form">
+                        <div class="form-group">
+                            <label for="serviceId">Service ID<span class="required">*</span></label>
+                            <input type="text" id="serviceId" placeholder="Enter service ID" required>
+                        </div>
+                        <div class="form-row">
+                            <input type="checkbox" id="deployGitFolder">
+                            <label for="deployGitFolder">Include .git folder</label>
                         </div>
                         <div class="button-group">
-                            <button id="loginButton" class="primary-button">Login</button>
-                            <button id="cancelButton" class="secondary-button">Cancel</button>
+                            <button class="button" id="pushButton" onclick="pushToService()">Push Changes</button>
                         </div>
-                    </div>
-
-                    <div id="tokenDisplay" style="display: none;">
-                        <div class="token-display">
-                            <div id="userInfo">
-                                <p>Not logged in</p>
-                            </div>
-                        </div>
-                        <div class="button-group">
-                            <button id="editButton" class="secondary-button">Edit Token</button>
-                            <button id="deleteButton" class="danger-button">Delete Token</button>
-                        </div>
-                    </div>
-
-                    <div id="message" class="message" style="display: none;"></div>
-
-                    <div id="projectsList" style="display: none;">
-                        <h3>Your Projects</h3>
-                        <div id="projectsContainer"></div>
+                        <div id="status" class="status" style="display: none;"></div>
                     </div>
                 </div>
-
                 <script>
-                    (function() {
-                        const vscode = acquireVsCodeApi();
-                        const loadingIndicator = document.getElementById('loadingIndicator');
-                        const tokenInput = document.getElementById('tokenInput');
-                        const loginForm = document.getElementById('loginForm');
-                        const tokenDisplay = document.getElementById('tokenDisplay');
-                        const loginButton = document.getElementById('loginButton');
-                        const editButton = document.getElementById('editButton');
-                        const cancelButton = document.getElementById('cancelButton');
-                        const deleteButton = document.getElementById('deleteButton');
-                        const messageDiv = document.getElementById('message');
-                        const projectsList = document.getElementById('projectsList');
-                        const projectsContainer = document.getElementById('projectsContainer');
+                    const vscode = acquireVsCodeApi();
+                    const pushButton = document.getElementById('pushButton');
+                    const status = document.getElementById('status');
 
-                        function showLoading(message = 'Loading...') {
-                            loadingIndicator.style.display = 'flex';
-                            loadingIndicator.querySelector('p').textContent = message;
-                            loginForm.style.display = 'none';
-                            tokenDisplay.style.display = 'none';
-                            projectsList.style.display = 'none';
-                            messageDiv.style.display = 'none';
+                    function showStatus(message, isError) {
+                        if (!status) return;
+                        status.textContent = message;
+                        status.className = 'status ' + (isError ? 'error' : 'success');
+                        status.style.display = 'block';
+                    }
+
+                    function pushToService() {
+                        const serviceId = document.getElementById('serviceId')?.value.trim() || '';
+                        const deployGitFolder = document.getElementById('deployGitFolder')?.checked || false;
+
+                        if (!serviceId) {
+                            showStatus('Service ID is required', true);
+                            return;
                         }
 
-                        function hideLoading() {
-                            loadingIndicator.style.display = 'none';
+                        if (status) {
+                            status.style.display = 'none';
                         }
 
-                        function updateDisplay(hasToken) {
-                            hideLoading();
-                            loginForm.style.display = hasToken ? 'none' : 'block';
-                            tokenDisplay.style.display = hasToken ? 'block' : 'none';
-                            messageDiv.style.display = 'none';
-                        }
-
-                        function showMessage(text, type = 'info') {
-                            messageDiv.textContent = text;
-                            messageDiv.className = \`message \${type}\`;
-                            messageDiv.style.display = 'block';
-                        }
-
-                        function handleLogin() {
-                            const token = tokenInput.value;
-                            if (!token) {
-                                showMessage('Please enter an access token', 'error');
-                                return;
-                            }
-
-                            loginButton.disabled = true;
-                            showLoading('Connecting to Zerops...');
-                            vscode.postMessage({ type: 'login', token });
-                        }
-
-                        function handleProjectClick(projectId) {
-                            showLoading('Loading project details...');
-                            vscode.postMessage({ type: 'getProjectDetails', projectId });
-                        }
-
-                        function renderProjects(projectsList) {
-                            projects = projectsList;
-                            projectsContainer.innerHTML = projects.map(project => 
-                                \`<div class="project-item" onclick="handleProjectClick('\${project.id}')">
-                                    <h4>\${project.name}</h4>
-                                    <p>\${project.description || ''}</p>
-                                </div>\`
-                            ).join('');
-                            projectsList.style.display = 'block';
-                        }
-
-                        // Event Listeners
-                        loginButton.addEventListener('click', handleLogin);
-
-                        editButton.addEventListener('click', () => {
-                            updateDisplay(false);
-                            messageDiv.style.display = 'none';
+                        vscode.postMessage({
+                            command: 'pushToService',
+                            serviceId,
+                            deployGitFolder
                         });
+                    }
 
-                        cancelButton.addEventListener('click', () => {
-                            updateDisplay(true);
-                            tokenInput.value = '';
-                            messageDiv.style.display = 'none';
-                        });
-
-                        deleteButton.addEventListener('click', () => {
-                            const confirmDelete = confirm('Are you sure you want to delete your token? This cannot be undone.');
-                            if (confirmDelete) {
-                                showLoading('Deleting token...');
-                                vscode.postMessage({ type: 'deleteToken' });
-                            }
-                        });
-
-                        // Message Handler
-                        window.addEventListener('message', event => {
-                            const message = event.data;
-                            switch (message.type) {
-                                case 'initializeState':
-                                    updateDisplay(message.isAuthenticated);
-                                    if (!message.isAuthenticated) {
-                                        showMessage('Please log in to continue', 'info');
-                                    }
-                                    break;
-
-                                case 'initialData':
-                                    hideLoading();
-                                    updateUserInfo(message.userInfo);
-                                    renderProjects(message.projects);
-                                    break;
-
-                                case 'loginResult':
-                                    loginButton.disabled = false;
-                                    hideLoading();
-                                    showMessage(message.message, message.success ? 'success' : 'error');
-                                    
-                                    if (message.success) {
-                                        tokenInput.value = '';
-                                        updateDisplay(true);
-                                        updateUserInfo(message.userInfo);
-                                    }
-                                    break;
-
-                                case 'error':
-                                    hideLoading();
-                                    showMessage(message.message, 'error');
-                                    break;
-
-                                case 'tokenDeleted':
-                                    hideLoading();
-                                    showMessage('Token has been deleted', 'success');
-                                    updateDisplay(false);
-                                    updateUserInfo(null);
-                                    break;
-                            }
-                        });
-
-                        function updateUserInfo(userInfo) {
-                            const userInfoDiv = document.getElementById('userInfo');
-                            if (userInfo) {
-                                userInfoDiv.innerHTML = \`
-                                    <div class="user-info">
-                                        <p><strong>\${userInfo.fullName}</strong></p>
-                                        <p class="user-email">\${userInfo.email}</p>
-                                    </div>
-                                \`;
-                            } else {
-                                userInfoDiv.innerHTML = '<p>Not logged in</p>';
-                            }
+                    window.addEventListener('message', event => {
+                        const message = event.data;
+                        switch (message.command) {
+                            case 'pushComplete':
+                                showStatus('Push completed successfully!', false);
+                                break;
+                            case 'pushError':
+                                showStatus(message.message, true);
+                                break;
                         }
-                    })();
+                    });
                 </script>
             </body>
             </html>`;

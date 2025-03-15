@@ -295,18 +295,16 @@ export class ZeropsApi {
     private static client?: ZeropsClient;
     private static context?: vscode.ExtensionContext;
     private static config: Config;
+    private static publicApiEndpoint = 'https://api.app-prg1.zerops.io/api/rest/public';
 
     static async initialize(context: vscode.ExtensionContext, ...options: ConfigOption[]) {
         this.context = context;
         this.config = defaultConfig(...options);
         
+        // Initialize the client if we have a stored token
         const token = context.globalState.get<string>('zeropsToken');
-        const region = context.globalState.get<Region>('zeropsRegion');
-        
         if (token) {
-            this.client = new ZeropsClient(token, 
-                withCustomEndpoint(region ? `https://${region.address}` : this.config.endpoint)
-            );
+            this.client = new ZeropsClient(token, ...options);
         }
     }
 
@@ -390,5 +388,37 @@ export class ZeropsApi {
             throw new Error('Not authenticated. Please login first.');
         }
         return this.client.getUserInfo();
+    }
+
+    // New methods for public API
+    static async getPublicApiStatus(): Promise<any> {
+        const url = `${this.publicApiEndpoint}/status`;
+        return await makeRequest(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+    }
+
+    static async getPublicApiVersion(): Promise<any> {
+        const url = `${this.publicApiEndpoint}/version`;
+        return await makeRequest(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+    }
+
+    // Add more public API methods as needed based on the Swagger documentation
+    static async getPublicApiHealth(): Promise<any> {
+        const url = `${this.publicApiEndpoint}/health`;
+        return await makeRequest(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
     }
 } 

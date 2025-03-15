@@ -51,6 +51,14 @@
             {
                 "command": "zerops.logout",
                 "title": "Zerops: Logout"
+            },
+            {
+                "command": "zerops.pushChanges",
+                "title": "Zerops: Push Changes to Service"
+            },
+            {
+                "command": "zerops.initProject",
+                "title": "Zerops: Initialize Project"
             }
         ]
     },

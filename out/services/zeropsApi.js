@@ -158,10 +158,10 @@ class ZeropsApi {
     static async initialize(context, ...options) {
         this.context = context;
         this.config = defaultConfig(...options);
+        // Initialize the client if we have a stored token
         const token = context.globalState.get('zeropsToken');
-        const region = context.globalState.get('zeropsRegion');
         if (token) {
-            this.client = new ZeropsClient(token, withCustomEndpoint(region ? `https://${region.address}` : this.config.endpoint));
+            this.client = new ZeropsClient(token, ...options);
         }
     }
     static async isAuthenticated() {
@@ -229,6 +229,36 @@ class ZeropsApi {
         }
         return this.client.getUserInfo();
     }
+    // New methods for public API
+    static async getPublicApiStatus() {
+        const url = `${this.publicApiEndpoint}/status`;
+        return await makeRequest(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+    }
+    static async getPublicApiVersion() {
+        const url = `${this.publicApiEndpoint}/version`;
+        return await makeRequest(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+    }
+    // Add more public API methods as needed based on the Swagger documentation
+    static async getPublicApiHealth() {
+        const url = `${this.publicApiEndpoint}/health`;
+        return await makeRequest(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+    }
 }
 exports.ZeropsApi = ZeropsApi;
+ZeropsApi.publicApiEndpoint = 'https://api.app-prg1.zerops.io/api/rest/public';
 //# sourceMappingURL=zeropsApi.js.map
