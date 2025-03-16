@@ -28,6 +28,17 @@ class ZeropsProvider {
         };
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
         this._setWebviewMessageListener(webviewView.webview);
+        // Check VPN status on load
+        this._checkVpnStatus(webviewView.webview);
+    }
+    async _checkVpnStatus(webview) {
+        try {
+            const status = await cliService_1.CliService.checkVpnStatus();
+            webview.postMessage({ command: 'vpnStatus', status });
+        }
+        catch (error) {
+            console.error('Failed to check VPN status:', error);
+        }
     }
     _setWebviewMessageListener(webview) {
         webview.onDidReceiveMessage(async (message) => {
@@ -37,32 +48,65 @@ class ZeropsProvider {
                     const serviceId = message.serviceId;
                     console.log(`Starting push to service ${serviceId}`);
                     try {
-                        await cliService_1.CliService.pushToService(message.serviceId, {
-                            deployGitFolder: message.deployGitFolder
-                        });
-                        webview.postMessage({ command: 'pushComplete' });
-                        vscode.window.showInformationMessage('Successfully pushed changes to service');
+                        await cliService_1.CliService.pushToService(message.serviceId);
+                        // No need to post completion message as we can't track completion anymore
+                        // Just inform the user that the push command has been sent to the terminal
+                        vscode.window.showInformationMessage('Push command sent to Zerops terminal');
                     }
                     catch (error) {
-                        console.error('Failed to push:', error);
+                        console.error('Failed to start push:', error);
                         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
                         webview.postMessage({ command: 'pushError', message: errorMessage });
-                        if (errorMessage !== 'Push cancelled by user') {
-                            vscode.window.showErrorMessage(`Failed to push: ${errorMessage}`);
-                        }
+                        vscode.window.showErrorMessage(`Failed to start push: ${errorMessage}`);
                     }
                     finally {
+                        // Re-enable the push button since we can't track completion
                         webview.postMessage({ command: 'resetButton' });
                     }
                     break;
-                case 'cancelPush':
+                case 'loadProjectSettings':
                     try {
-                        await cliService_1.CliService.cancelPush();
+                        const settings = await cliService_1.CliService.loadProjectSettings();
+                        webview.postMessage({ command: 'projectSettings', settings });
                     }
                     catch (error) {
-                        // Cancellation was successful, reset the UI
-                        webview.postMessage({ command: 'resetButton' });
-                        webview.postMessage({ command: 'pushError', message: 'Push cancelled by user' });
+                        console.error('Failed to load project settings:', error);
+                    }
+                    break;
+                case 'checkVpnStatus':
+                    await this._checkVpnStatus(webview);
+                    break;
+                case 'vpnUp':
+                    try {
+                        const projectId = message.projectId;
+                        const autoDisconnect = message.autoDisconnect || false;
+                        if (!projectId) {
+                            throw new Error('Project ID is required for VPN connection');
+                        }
+                        webview.postMessage({ command: 'vpnConnecting' });
+                        await cliService_1.CliService.vpnUp(projectId, autoDisconnect);
+                        webview.postMessage({ command: 'vpnStatus', status: 'connected' });
+                    }
+                    catch (error) {
+                        console.error('Failed to connect VPN:', error);
+                        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+                        webview.postMessage({ command: 'vpnError', message: errorMessage });
+                        // Check status again in case the terminal method succeeded
+                        setTimeout(() => this._checkVpnStatus(webview), 3000);
+                    }
+                    break;
+                case 'vpnDown':
+                    try {
+                        webview.postMessage({ command: 'vpnDisconnecting' });
+                        await cliService_1.CliService.vpnDown();
+                        webview.postMessage({ command: 'vpnStatus', status: 'disconnected' });
+                    }
+                    catch (error) {
+                        console.error('Failed to disconnect VPN:', error);
+                        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+                        webview.postMessage({ command: 'vpnError', message: errorMessage });
+                        // Check status again in case the terminal method succeeded
+                        setTimeout(() => this._checkVpnStatus(webview), 3000);
                     }
                     break;
             }
@@ -84,20 +128,32 @@ class ZeropsProvider {
                     .header {
                         margin-bottom: 1.5rem;
                     }
-                    .push-form {
-                        padding: 1rem;
+                    .section {
+                        margin-bottom: 1.5rem;
+                    }
+                    .section-title {
+                        font-size: 1.1rem;
+                        font-weight: 600;
+                        padding-left: 0.45rem;
+                        padding-bottom: 0.5rem;
+                        border-bottom: 1px solid var(--vscode-widget-border);
+                    }
+                    .push-form, .vpn-form {
+                        padding: 0.75rem;
                         border: 1px solid var(--vscode-widget-border);
                         border-radius: 4px;
+                        margin-bottom: 1.5rem;
                     }
                     .form-group {
-                        margin-bottom: 1rem;
+                        margin-bottom: 0.75rem;
                     }
                     .form-group label {
                         display: block;
                         margin-bottom: 0.5rem;
                         font-weight: 500;
                     }
-                    .form-group input[type="text"] {
+                    .form-group input[type="text"],
+                    .form-group select {
                         width: 100%;
                         padding: 0.5rem;
                         background: var(--vscode-input-background);
@@ -154,66 +210,162 @@ class ZeropsProvider {
                     .button-group {
                         margin-top: 1rem;
                     }
+                    .vpn-controls {
+                        display: flex;
+                        gap: 0.5rem;
+                        align-items: center;
+                    }
+                    .info-text {
+                        font-size: 0.9rem;
+                        color: #6c6c6c;
+                        margin-top: 0.5rem;
+                        font-style: italic;
+                    }
+                    .hidden {
+                        display: none;
+                    }
                 </style>
             </head>
             <body>
                 <div id="app">
+                    <div class="section">
+                        <div class="section-title">Push Changes</div>
+                        <div class="push-form">
+                            <div class="form-group">
+                                <label for="serviceId">Service ID<span class="required">*</span></label>
+                                <input type="text" id="serviceId" placeholder="Enter service ID" required>
+                            </div>
+                            <div class="button-group">
+                                <button class="button" id="pushButton" onclick="pushToService()">Push Changes</button>
+                            </div>
+                            <div id="pushStatus" class="status" style="display: none;"></div>
+                        </div>
+                    </div>
 
-                    <div class="push-form">
-                        <div class="form-group">
-                            <label for="serviceId">Service ID<span class="required">*</span></label>
-                            <input type="text" id="serviceId" placeholder="Enter service ID" required>
+                    <div class="section">
+                        <div class="section-title">Zerops VPN</div>
+                        <div class="vpn-form">
+                            <div id="vpnControls">
+                                <div class="form-group">
+                                    <label for="projectId">Project ID<span class="required">*</span></label>
+                                    <input type="text" id="projectId" placeholder="Enter project ID" required>
+                                </div>
+                                
+                                <div class="button-group">
+                                    <button class="button" id="connectVpnButton" onclick="connectVpn()">Connect VPN</button>
+                                </div>
+                                <div class="button-group" style="margin-top: 0.5rem;">
+                                    <button class="button" id="disconnectVpnButton" onclick="disconnectVpn()" style="background-color: #666;">Disconnect VPN</button>
+                                </div>
+                            </div>
                         </div>
-                        <div class="form-row">
-                            <input type="checkbox" id="deployGitFolder">
-                            <label for="deployGitFolder">Include .git folder</label>
-                        </div>
-                        <div class="button-group">
-                            <button class="button" id="pushButton" onclick="pushToService()">Push Changes</button>
-                        </div>
-                        <div id="status" class="status" style="display: none;"></div>
                     </div>
                 </div>
                 <script>
                     const vscode = acquireVsCodeApi();
                     const pushButton = document.getElementById('pushButton');
-                    const status = document.getElementById('status');
+                    const pushStatus = document.getElementById('pushStatus');
+                    const connectVpnButton = document.getElementById('connectVpnButton');
+                    const disconnectVpnButton = document.getElementById('disconnectVpnButton');
 
-                    function showStatus(message, isError) {
-                        if (!status) return;
-                        status.textContent = message;
-                        status.className = 'status ' + (isError ? 'error' : 'success');
-                        status.style.display = 'block';
+                    // Initial check of VPN status
+                    vscode.postMessage({ command: 'checkVpnStatus' });
+                    
+                    // Load saved project settings
+                    vscode.postMessage({ command: 'loadProjectSettings' });
+
+                    function showStatus(elementId, message, isError) {
+                        const statusElement = document.getElementById(elementId);
+                        if (!statusElement) return;
+                        statusElement.textContent = message;
+                        statusElement.className = 'status ' + (isError ? 'error' : 'success');
+                        statusElement.style.display = 'block';
                     }
 
                     function pushToService() {
                         const serviceId = document.getElementById('serviceId')?.value.trim() || '';
-                        const deployGitFolder = document.getElementById('deployGitFolder')?.checked || false;
-
+                        
                         if (!serviceId) {
-                            showStatus('Service ID is required', true);
+                            showStatus('pushStatus', 'Service ID is required', true);
                             return;
                         }
 
-                        if (status) {
-                            status.style.display = 'none';
+                        if (pushStatus) {
+                            pushStatus.style.display = 'none';
                         }
 
                         vscode.postMessage({
                             command: 'pushToService',
-                            serviceId,
-                            deployGitFolder
+                            serviceId
                         });
+                    }
+
+                    function connectVpn() {
+                        const projectId = document.getElementById('projectId')?.value.trim() || '';
+                        
+                        if (!projectId) {
+                            vscode.window.showErrorMessage('Project ID is required');
+                            return;
+                        }
+                        
+                        connectVpnButton.disabled = true;
+                        disconnectVpnButton.disabled = true;
+                        
+                        vscode.postMessage({
+                            command: 'vpnUp',
+                            projectId,
+                            autoDisconnect: false
+                        });
+                    }
+
+                    function disconnectVpn() {
+                        connectVpnButton.disabled = true;
+                        disconnectVpnButton.disabled = true;
+                        
+                        vscode.postMessage({
+                            command: 'vpnDown'
+                        });
+                    }
+
+                    function updateVpnStatusIndicator(status) {
+                        if (status === 'connected' || status === 'disconnected') {
+                            connectVpnButton.disabled = false;
+                            disconnectVpnButton.disabled = false;
+                        } else if (status === 'connecting' || status === 'disconnecting') {
+                            // Just leave the buttons disabled while in transition states
+                        }
                     }
 
                     window.addEventListener('message', event => {
                         const message = event.data;
                         switch (message.command) {
                             case 'pushComplete':
-                                showStatus('Push completed successfully!', false);
+                                showStatus('pushStatus', 'Push completed successfully!', false);
                                 break;
                             case 'pushError':
-                                showStatus(message.message, true);
+                                showStatus('pushStatus', message.message, true);
+                                break;
+                            case 'projectSettings':
+                                if (message.settings && message.settings.serviceId) {
+                                    document.getElementById('serviceId').value = message.settings.serviceId;
+                                }
+                                if (message.settings && message.settings.projectId) {
+                                    document.getElementById('projectId').value = message.settings.projectId;
+                                }
+                                break;
+                            case 'vpnStatus':
+                                updateVpnStatusIndicator(message.status);
+                                break;
+                            case 'vpnConnecting':
+                                updateVpnStatusIndicator('connecting');
+                                break;
+                            case 'vpnDisconnecting':
+                                updateVpnStatusIndicator('disconnecting');
+                                break;
+                            case 'vpnError':
+                                updateVpnStatusIndicator('disconnected');
+                                connectVpnButton.disabled = false;
+                                disconnectVpnButton.disabled = false;
                                 break;
                         }
                     });

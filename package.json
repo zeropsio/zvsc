@@ -6,6 +6,9 @@
     "engines": {
         "vscode": "^1.60.0"
     },
+    "activationEvents": [
+        "onStartupFinished"
+    ],
     "scripts": {
         "compile": "tsc -p ./",
         "watch": "tsc -watch -p ./"
@@ -15,24 +18,6 @@
     ],
     "main": "./out/extension.js",
     "contributes": {
-        "viewsContainers": {
-            "activitybar": [
-                {
-                    "id": "zvsc",
-                    "title": "zVsc",
-                    "icon": "resources/zerops.svg"
-                }
-            ]
-        },
-        "views": {
-            "zvsc": [
-                {
-                    "type": "webview",
-                    "id": "zVsc",
-                    "name": "zVsc"
-                }
-            ]
-        },
         "configuration": {
             "title": "Zerops",
             "properties": {
