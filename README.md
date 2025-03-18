@@ -16,8 +16,8 @@
   <a href="https://marketplace.visualstudio.com/items?itemName=Zerops.zvsc">
     <img src="https://img.shields.io/visual-studio-marketplace/r/Zerops.zvsc" alt="Visual Studio Marketplace Rating">
   </a>
-  <a href="https://github.com/zeropsio/zVsc-main/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/zeropsio/zVsc-main" alt="License">
+  <a href="https://github.com/zeropsio/zvsc/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/zeropsio/zvsc" alt="License">
   </a>
 </p> -->
 
@@ -126,9 +126,9 @@ If you're experiencing login issues:
 ## Support and Feedback
 
 - **Documentation**: Visit [Zerops Documentation](https://docs.zerops.io)
-- **Community**: Join our [Discord server](https://discord.gg/zerops) for support
-- **Issues**: Report bugs or request features on our [GitHub repository](https://github.com/zeropsio/zVsc-main/issues)
-- **Contact**: Email us at [info@zerops.io](mailto:info@zerops.io)
+- **Community**: Join our [Discord server](https://discord.gg/zeropsio) for support
+- **Issues**: Report bugs or request features on our [GitHub repository](https://github.com/zeropsio/zvsc/issues)
+- **Contact**: Email us at [support@zerops.io](mailto:support@zerops.io)
 
 ## License
 

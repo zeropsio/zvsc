@@ -13,17 +13,17 @@
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/zeropsio/zVsc-main.git"
+        "url": "https://github.com/zeropsio/zvsc.git"
     },
     "homepage": "https://zerops.io",
     "bugs": {
-        "url": "https://github.com/zeropsio/zVsc-main/issues"
+        "url": "https://github.com/zeropsio/zvsc/issues"
     },
     "license": "MIT",
     "publisher": "Zerops",
     "author": {
         "name": "Zerops",
-        "email": "info@zerops.io"
+        "email": "support@zerops.io"
     },
     "keywords": [
         "zerops",
