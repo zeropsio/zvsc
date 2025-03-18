@@ -6,7 +6,6 @@ import { Recipe, RecipeOption, CloneOption } from './types';
 import { RECIPES } from './recipes';
 import { ZEROPS_YML, IMPORT_YML } from './init';
 
-// Store references to status bar items
 let zeropsStatusBarItem: vscode.StatusBarItem;
 let pushStatusBarItem: vscode.StatusBarItem;
 let vpnUpStatusBarItem: vscode.StatusBarItem;
@@ -18,16 +17,13 @@ export async function activate(context: vscode.ExtensionContext) {
     console.log('Activating Zerops extension...');
     
     try {
-        // Check if zcli is installed
         const isCliInstalled = await CliService.checkCliInstalled();
         if (!isCliInstalled) {
             throw new Error('zcli is not installed. Please install zcli to use this extension.');
         }
         
-        // Check if user is already logged in first
         await CliService.checkLoginStatus();
         
-        // If not logged in, try auto-login
         if (!CliService.getLoginStatus()) {
             try {
                 const isLoggedIn = await CliService.autoLogin(context);
@@ -41,14 +37,11 @@ export async function activate(context: vscode.ExtensionContext) {
             console.log('User is already logged in');
         }
 
-        // Register commands first
-        // Register Push from status bar command
         let pushFromStatusBarCommand = vscode.commands.registerCommand('zerops.pushFromStatusBar', async () => {
             try {
                 const settings = await CliService.loadProjectSettings();
                 
                 if (!settings.serviceId) {
-                    // No serviceId saved, prompt the user to enter one
                     const serviceId = await vscode.window.showInputBox({
                         prompt: 'Enter your Zerops Service ID',
                         placeHolder: 'Service ID from Zerops Dashboard',
@@ -62,7 +55,6 @@ export async function activate(context: vscode.ExtensionContext) {
                         await CliService.pushToService(serviceId);
                     }
                 } else {
-                    // Use the saved serviceId
                     await CliService.pushToService(settings.serviceId);
                 }
             } catch (error) {
@@ -72,13 +64,11 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         });
         
-        // Register VPN Up status bar command
         let vpnUpFromStatusBarCommand = vscode.commands.registerCommand('zerops.vpnUpFromStatusBar', async () => {
             try {
                 const settings = await CliService.loadProjectSettings();
                 
                 if (!settings.projectId) {
-                    // No projectId saved, prompt the user to enter one
                     const projectId = await vscode.window.showInputBox({
                         prompt: 'Enter your Zerops Project ID',
                         placeHolder: 'Project ID from Zerops Dashboard',
@@ -92,7 +82,6 @@ export async function activate(context: vscode.ExtensionContext) {
                         await CliService.vpnUp(projectId, false);
                     }
                 } else {
-                    // Use the saved projectId
                     await CliService.vpnUp(settings.projectId, false);
                 }
             } catch (error) {
@@ -102,7 +91,6 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         });
         
-        // Register VPN Down status bar command
         let vpnDownFromStatusBarCommand = vscode.commands.registerCommand('zerops.vpnDownFromStatusBar', async () => {
             try {
                 await CliService.vpnDown();
@@ -113,31 +101,24 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         });
 
-        // Now create status bar items after commands are registered
         try {
-            // Create a single status bar item for all Zerops commands
             zeropsStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 3);
             zeropsStatusBarItem.text = "$(rocket) Zerops";
             zeropsStatusBarItem.tooltip = "Zerops Controls";
             
-            // Create QuickPick menu command
             zeropsStatusBarItem.command = 'zerops.showCommands';
             
-            // Register the command for the QuickPick menu
             const showCommandsCommand = vscode.commands.registerCommand('zerops.showCommands', async () => {
                 try {
                     let keepMenuOpen = true;
                     
-                    // Continue showing the menu until explicitly closed
                     while (keepMenuOpen) {
-                        // Check if project settings exist
                         const settings = await CliService.loadProjectSettings();
                         const hasServiceId = settings && settings.serviceId;
                         const hasProjectId = settings && settings.projectId;
                         
                         let commands = [];
                         
-                        // Add operational commands if applicable
                         if (hasServiceId) {
                             commands.push({ label: '$(cloud-upload) Push to Zerops', action: 'zerops.pushFromStatusBar', keepOpen: false });
                         }
@@ -147,22 +128,16 @@ export async function activate(context: vscode.ExtensionContext) {
                             commands.push({ label: '$(debug-disconnect) VPN Down', action: 'zerops.vpnDownFromStatusBar', keepOpen: false });
                         }
                         
-                        // Add Explore GUI option before configuration options
                         commands.push({ label: '$(globe) Explore GUI', action: 'exploreGui', keepOpen: true });
 
-                        // Add Zerops Docs option
                         commands.push({ label: '$(book) Zerops Docs', action: 'openDocs', keepOpen: false });
                         
-                        // Add Clone Recipe option
                         commands.push({ label: '$(repo-clone) Clone Recipe', action: 'cloneRecipe', keepOpen: true });
 
-                        // Add Init Configurations option
                         commands.push({ label: '$(file-add) Init Configurations', action: 'initConfigurations', keepOpen: true });
 
-                        // Add Settings menu option with gear icon
                         commands.push({ label: '$(gear) Settings', action: 'settings', keepOpen: true });
                         
-                        // If user is not logged in, show login directly in the main menu
                         if (!CliService.getLoginStatus()) {
                             commands.push({ label: '$(key) Login with Access Token', action: 'zerops.login', keepOpen: false });
                         }
@@ -172,18 +147,14 @@ export async function activate(context: vscode.ExtensionContext) {
                         });
                         
                         if (!selected) {
-                            // User canceled the menu
                             keepMenuOpen = false;
                             continue;
                         }
 
-                        // Handle the Clone Recipe option
                         if (selected.action === 'cloneRecipe') {
                             try {
-                                // Use recipes from recipes.ts instead of reading from JSON file
                                 const recipes = RECIPES;
                                 
-                                // Create recipe options for the quick pick
                                 const recipeOptions = recipes.map((recipe: Recipe): RecipeOption => ({
                                     label: `$(repo) ${recipe.name}`,
                                     action: 'clone',
@@ -192,7 +163,6 @@ export async function activate(context: vscode.ExtensionContext) {
                                     name: recipe.name
                                 }));
                                 
-                                // Add Go Back option
                                 recipeOptions.push({ 
                                     label: '$(arrow-left) Go Back', 
                                     action: 'goBack', 
@@ -201,7 +171,6 @@ export async function activate(context: vscode.ExtensionContext) {
                                     name: '' 
                                 });
                                 
-                                // Show the recipes menu
                                 const recipeSelected = await vscode.window.showQuickPick(recipeOptions, {
                                     placeHolder: 'Select a recipe to clone',
                                     ignoreFocusOut: true
@@ -209,10 +178,8 @@ export async function activate(context: vscode.ExtensionContext) {
                                 
                                 if (recipeSelected) {
                                     if (recipeSelected.action === 'goBack') {
-                                        // Just keep menu open to return to main menu
                                         keepMenuOpen = true;
                                     } else {
-                                        // Ask user where to clone the repository
                                         const cloneOptions: CloneOption[] = [
                                             { label: '$(folder-opened) Clone to a new directory', action: 'newDir', description: `Create a new directory: ${recipeSelected.name}` },
                                             { label: '$(root-folder) Clone to current workspace root', action: 'root', description: 'Files will be copied to the workspace root' },
@@ -226,10 +193,8 @@ export async function activate(context: vscode.ExtensionContext) {
                                         
                                         if (cloneOption) {
                                             if (cloneOption.action === 'goBack') {
-                                                // Stay on the recipe menu
                                                 continue;
                                             } else {
-                                                // Get the current workspace folder
                                                 const workspaceFolders = vscode.workspace.workspaceFolders;
                                                 if (!workspaceFolders || workspaceFolders.length === 0) {
                                                     vscode.window.showErrorMessage('No workspace folder is open. Please open a folder first.');
@@ -239,12 +204,10 @@ export async function activate(context: vscode.ExtensionContext) {
                                                 
                                                 const currentWorkspace = workspaceFolders[0].uri.fsPath;
                                                 
-                                                // Determine the clone path
                                                 let clonePath = currentWorkspace;
                                                 if (cloneOption.action === 'newDir') {
                                                     clonePath = path.join(currentWorkspace, recipeSelected.name);
                                                     
-                                                    // Check if directory already exists
                                                     if (fs.existsSync(clonePath)) {
                                                         const overwrite = await vscode.window.showWarningMessage(
                                                             `Directory '${recipeSelected.name}' already exists. Do you want to overwrite it?`,
@@ -258,7 +221,6 @@ export async function activate(context: vscode.ExtensionContext) {
                                                     }
                                                 }
                                                 
-                                                // Show progress while cloning
                                                 await vscode.window.withProgress({
                                                     location: vscode.ProgressLocation.Notification,
                                                     title: `Cloning ${recipeSelected.name}...`,
@@ -267,19 +229,14 @@ export async function activate(context: vscode.ExtensionContext) {
                                                     progress.report({ increment: 0 });
                                                     
                                                     try {
-                                                        // Determine git clone options based on where to clone
                                                         let gitArgs = ['clone', recipeSelected.url];
                                                         
                                                         if (cloneOption.action === 'newDir') {
-                                                            // For new directory, just use the default git clone behavior
-                                                            // which creates a new directory with the repo name
                                                             gitArgs.push(recipeSelected.name);
                                                         } else {
-                                                            // For root directory, clone directly to current directory
                                                             gitArgs.push('.');
                                                         }
                                                         
-                                                        // Execute git clone command
                                                         const { spawn } = require('child_process');
                                                         const git = spawn('git', gitArgs, { cwd: currentWorkspace });
                                                         
@@ -288,7 +245,7 @@ export async function activate(context: vscode.ExtensionContext) {
                                                         git.stderr.on('data', (data: Buffer) => {
                                                             const output = data.toString();
                                                             console.log(`Git stderr: ${output}`);
-                                                            // Git progress messages also come through stderr
+
                                                             if (output.includes('Cloning into')) {
                                                                 progress.report({ increment: 20, message: 'Starting clone operation...' });
                                                             } else if (output.includes('Resolving deltas')) {
@@ -298,7 +255,6 @@ export async function activate(context: vscode.ExtensionContext) {
                                                             }
                                                         });
                                                         
-                                                        // Wait for process to complete
                                                         await new Promise<number>((resolve, reject) => {
                                                             git.on('close', (code: number) => {
                                                                 if (code === 0) {
@@ -309,7 +265,6 @@ export async function activate(context: vscode.ExtensionContext) {
                                                             });
                                                         });
                                                         
-                                                        // No need for temp directory or copying files anymore
                                                         progress.report({ increment: 100, message: 'Clone completed successfully!' });
                                                         
                                                         vscode.window.showInformationMessage(`Successfully cloned ${recipeSelected.name}`);
@@ -322,12 +277,10 @@ export async function activate(context: vscode.ExtensionContext) {
                                                 keepMenuOpen = false;
                                             }
                                         } else {
-                                            // User canceled, go back to main menu
                                             keepMenuOpen = true;
                                         }
                                     }
                                 } else {
-                                    // User canceled, go back to main menu
                                     keepMenuOpen = true;
                                 }
                             } catch (error) {
@@ -336,17 +289,14 @@ export async function activate(context: vscode.ExtensionContext) {
                                 keepMenuOpen = true;
                             }
                         }
-                        // Handle the Init Configurations option
                         else if (selected.action === 'initConfigurations') {
                             try {
-                                // Create configuration options
                                 const configOptions = [
                                     { label: '$(file-code) Init zerops.yml', action: 'initZYml', description: 'Initializes a zerops.yml file in root' },
                                     { label: '$(file-code) Init zerops-project-import.yml', action: 'initZYmlImport', description: 'Initializes a zerops-project-import.yml file in root' },
                                     { label: '$(arrow-left) Go Back', action: 'goBack', description: 'Return to main menu' }
                                 ];
                                 
-                                // Show configuration options
                                 const configSelected = await vscode.window.showQuickPick(configOptions, {
                                     placeHolder: 'Select a configuration to initialize',
                                     ignoreFocusOut: true
@@ -354,10 +304,8 @@ export async function activate(context: vscode.ExtensionContext) {
                                 
                                 if (configSelected) {
                                     if (configSelected.action === 'goBack') {
-                                        // Just keep menu open to return to main menu
                                         keepMenuOpen = true;
                                     } else if (configSelected.action === 'initZYml') {
-                                        // Get the current workspace folder
                                         const workspaceFolders = vscode.workspace.workspaceFolders;
                                         if (!workspaceFolders || workspaceFolders.length === 0) {
                                             vscode.window.showErrorMessage('No workspace folder is open. Please open a folder first.');
@@ -368,9 +316,7 @@ export async function activate(context: vscode.ExtensionContext) {
                                         const currentWorkspace = workspaceFolders[0].uri.fsPath;
                                         const zeropsYmlPath = path.join(currentWorkspace, 'zerops.yml');
                                         
-                                        // Check if zerops.yml already exists
                                         if (fs.existsSync(zeropsYmlPath)) {
-                                            // Ask for confirmation to overwrite
                                             const overwrite = await vscode.window.showWarningMessage(
                                                 'zerops.yml already exists. Do you want to overwrite it?',
                                                 'Yes', 'No'
@@ -381,14 +327,11 @@ export async function activate(context: vscode.ExtensionContext) {
                                                 continue;
                                             }
                                         }
-                                        // No confirmation needed if file doesn't exist
                                         
-                                        // Create zerops.yml file
                                         try {
                                             fs.writeFileSync(zeropsYmlPath, ZEROPS_YML);
                                             vscode.window.showInformationMessage('zerops.yml has been created successfully!');
                                             
-                                            // Open the file in the editor
                                             const doc = await vscode.workspace.openTextDocument(zeropsYmlPath);
                                             await vscode.window.showTextDocument(doc);
                                             
@@ -399,7 +342,6 @@ export async function activate(context: vscode.ExtensionContext) {
                                             keepMenuOpen = true;
                                         }
                                     } else if (configSelected.action === 'initZYmlImport') {
-                                        // Get the current workspace folder
                                         const workspaceFolders = vscode.workspace.workspaceFolders;
                                         if (!workspaceFolders || workspaceFolders.length === 0) {
                                             vscode.window.showErrorMessage('No workspace folder is open. Please open a folder first.');
@@ -410,9 +352,7 @@ export async function activate(context: vscode.ExtensionContext) {
                                         const currentWorkspace = workspaceFolders[0].uri.fsPath;
                                         const zeropsYmlImportPath = path.join(currentWorkspace, 'zerops-project-import.yml');
                                         
-                                        // Check if zerops-project-import.yml already exists
                                         if (fs.existsSync(zeropsYmlImportPath)) {
-                                            // Ask for confirmation to overwrite
                                             const overwrite = await vscode.window.showWarningMessage(
                                                 'zerops-project-import.yml already exists. Do you want to overwrite it?',
                                                 'Yes', 'No'
@@ -423,14 +363,11 @@ export async function activate(context: vscode.ExtensionContext) {
                                                 continue;
                                             }
                                         }
-                                        // No confirmation needed if file doesn't exist
                                         
-                                        // Create zerops-project-import.yml file
                                         try {
                                             fs.writeFileSync(zeropsYmlImportPath, IMPORT_YML);
                                             vscode.window.showInformationMessage('zerops-project-import.yml has been created successfully!');
                                             
-                                            // Open the file in the editor
                                             const doc = await vscode.workspace.openTextDocument(zeropsYmlImportPath);
                                             await vscode.window.showTextDocument(doc);
                                             
@@ -442,7 +379,6 @@ export async function activate(context: vscode.ExtensionContext) {
                                         }
                                     }
                                 } else {
-                                    // User canceled, go back to main menu
                                     keepMenuOpen = true;
                                 }
                             } catch (error) {
@@ -451,16 +387,12 @@ export async function activate(context: vscode.ExtensionContext) {
                                 keepMenuOpen = true;
                             }
                         }
-                        // Handle the Settings menu option
                         else if (selected.action === 'settings') {
                             const settingsOptions = [];
                             
-                            // Add configuration options based on what's available
                             if (hasServiceId && hasProjectId) {
-                                // If both IDs are configured, show a single Edit Configuration option
                                 settingsOptions.push({ label: '$(gear) Edit Configuration', action: 'editConfiguration', description: 'Edit Service and Project IDs' });
                             } else {
-                                // Otherwise, show individual options based on what's missing or needs editing
                                 if (hasServiceId) {
                                     settingsOptions.push({ label: '$(edit) Edit Service ID', action: 'setupServiceId', description: `Current: ${settings.serviceId}` });
                                 } else {
@@ -474,12 +406,10 @@ export async function activate(context: vscode.ExtensionContext) {
                                 }
                             }
                             
-                            // Add logout option if they are logged in
                             if (CliService.getLoginStatus()) {
                                 settingsOptions.push({ label: '$(sign-out) Logout from Zerops', action: 'zerops.logout', description: 'Sign out from Zerops' });
                             }
                             
-                            // Add Go Back option
                             settingsOptions.push({ label: '$(arrow-left) Go Back', action: 'goBack', description: 'Return to main menu' });
                             
                             const settingsSelected = await vscode.window.showQuickPick(settingsOptions, {
@@ -488,10 +418,8 @@ export async function activate(context: vscode.ExtensionContext) {
                             
                             if (settingsSelected) {
                                 if (settingsSelected.action === 'goBack') {
-                                    // Keep menu open to return to main menu
                                     keepMenuOpen = true;
                                 } else if (settingsSelected.action === 'editConfiguration') {
-                                    // Handle editing both Service ID and Project ID in a submenu
                                     const configOptions = [
                                         { label: '$(edit) Edit Service ID', action: 'setupServiceId', description: `Current: ${settings.serviceId}` },
                                         { label: '$(edit) Edit Project ID', action: 'setupProjectId', description: `Current: ${settings.projectId}` },
@@ -504,10 +432,8 @@ export async function activate(context: vscode.ExtensionContext) {
                                     
                                     if (configSelected) {
                                         if (configSelected.action === 'goBackToSettings') {
-                                            // Skip to next iteration to show settings menu again
                                             continue;
                                         } else if (configSelected.action === 'setupServiceId') {
-                                            // Handle Service ID setup
                                             const serviceId = await vscode.window.showInputBox({
                                                 prompt: 'Enter your Zerops Service ID',
                                                 placeHolder: 'Service ID from Zerops Dashboard',
@@ -519,7 +445,6 @@ export async function activate(context: vscode.ExtensionContext) {
                                             });
                                             
                                             if (serviceId) {
-                                                // Save the service ID
                                                 await CliService.saveProjectSettings({ 
                                                     serviceId,
                                                     projectId: settings.projectId
@@ -527,7 +452,6 @@ export async function activate(context: vscode.ExtensionContext) {
                                                 vscode.window.showInformationMessage('Service ID updated successfully');
                                             }
                                         } else if (configSelected.action === 'setupProjectId') {
-                                            // Handle Project ID setup
                                             const projectId = await vscode.window.showInputBox({
                                                 prompt: 'Enter your Zerops Project ID',
                                                 placeHolder: 'Project ID from Zerops Dashboard',
@@ -539,7 +463,6 @@ export async function activate(context: vscode.ExtensionContext) {
                                             });
                                             
                                             if (projectId) {
-                                                // Save the project ID
                                                 await CliService.saveProjectSettings({ 
                                                     serviceId: settings.serviceId,
                                                     projectId
@@ -549,28 +472,23 @@ export async function activate(context: vscode.ExtensionContext) {
                                         }
                                     }
                                     
-                                    // Keep the menu open after editing configuration
                                     keepMenuOpen = true;
                                 } else {
-                                    // For other settings options (direct ones like setupServiceId, setupProjectId, or logout)
                                     vscode.commands.executeCommand(settingsSelected.action);
                                     if (settingsSelected.action === 'zerops.logout') {
-                                        keepMenuOpen = false; // Close menu after logout
+                                        keepMenuOpen = false;
                                     } else {
-                                        keepMenuOpen = true; // Keep open for other actions
+                                        keepMenuOpen = true;
                                     }
                                 }
                             } else {
-                                // User canceled the settings menu, go back to main menu
                                 keepMenuOpen = true;
                             }
                         } else if (selected.action === 'exploreGui') {
-                            // Create submenu options for GUI navigation
                             const guiOptions = [
                                 { label: '$(browser) Open GUI', action: 'zerops.openDashboard', description: 'Opens on Web' },
                             ];
                             
-                            // Add project option if available
                             if (hasProjectId) {
                                 guiOptions.push({ 
                                     label: '$(project) Open Project', 
@@ -579,7 +497,6 @@ export async function activate(context: vscode.ExtensionContext) {
                                 });
                             }
                             
-                            // Add Explore Service option if available (instead of Open Service)
                             if (hasServiceId) {
                                 guiOptions.push({ 
                                     label: '$(server) Explore Service', 
@@ -588,25 +505,20 @@ export async function activate(context: vscode.ExtensionContext) {
                                 });
                             }
                             
-                            // Add Go Back option at the bottom
                             guiOptions.push({ 
                                 label: '$(arrow-left) Go Back', 
                                 action: 'goBack', 
                                 description: 'Return to main menu' 
                             });
                             
-                            // Show the submenu
                             const guiSelected = await vscode.window.showQuickPick(guiOptions, {
                                 placeHolder: 'Select GUI to open'
                             });
                             
                             if (guiSelected) {
                                 if (guiSelected.action === 'goBack') {
-                                    // Show the GUI options again via recursive handling
-                                    // The exploreGui action will be handled in the next iteration
                                     keepMenuOpen = true;
                                 } else if (guiSelected.action === 'exploreService') {
-                                    // Show service-specific options directly in the current flow
                                     if (settings.serviceId) {
                                         const serviceOptions = [
                                             { label: '$(open-editors-view-icon) Open Service', action: 'zerops.openServiceDashboard', description: 'Opens on Web' },
@@ -626,12 +538,10 @@ export async function activate(context: vscode.ExtensionContext) {
                                         
                                         if (serviceSelected) {
                                             if (serviceSelected.action === 'backToGuiMenu') {
-                                                // Re-show the GUI menu options
                                                 const guiOptions = [
                                                     { label: '$(browser) Open GUI', action: 'zerops.openDashboard', description: 'Opens on Web' },
                                                 ];
                                                 
-                                                // Add project option if available
                                                 if (hasProjectId) {
                                                     guiOptions.push({ 
                                                         label: '$(project) Open Project', 
@@ -640,7 +550,6 @@ export async function activate(context: vscode.ExtensionContext) {
                                                     });
                                                 }
                                                 
-                                                // Add Explore Service option if available
                                                 if (hasServiceId) {
                                                     guiOptions.push({ 
                                                         label: '$(server) Explore Service', 
@@ -649,39 +558,31 @@ export async function activate(context: vscode.ExtensionContext) {
                                                     });
                                                 }
                                                 
-                                                // Add Go Back option at the bottom
                                                 guiOptions.push({ 
                                                     label: '$(arrow-left) Go Back', 
                                                     action: 'goBack', 
                                                     description: 'Return to main menu' 
                                                 });
                                                 
-                                                // Re-show the GUI submenu
                                                 const nextGuiSelected = await vscode.window.showQuickPick(guiOptions, {
                                                     placeHolder: 'Select GUI to open'
                                                 });
                                                 
                                                 if (nextGuiSelected) {
                                                     if (nextGuiSelected.action === 'goBack') {
-                                                        // Just keep menu open to continue loop from main menu
                                                         keepMenuOpen = true;
                                                     } else if (nextGuiSelected.action === 'exploreService') {
-                                                        // Handled in next iteration
                                                         keepMenuOpen = true;
                                                     } else {
-                                                        // Execute the selected GUI action
                                                         vscode.commands.executeCommand(nextGuiSelected.action);
                                                         keepMenuOpen = false;
                                                     }
                                                 } else {
-                                                    // If cancelled, stay on main menu
                                                     keepMenuOpen = true;
                                                 }
                                             } else if (serviceSelected.action === 'zerops.openServiceDashboard') {
-                                                // Use the existing command for service dashboard
                                                 vscode.commands.executeCommand(serviceSelected.action);
                                             } else {
-                                                // Handle custom service URLs
                                                 let url = '';
                                                 switch (serviceSelected.action) {
                                                     case 'openServiceDeploy':
@@ -716,7 +617,6 @@ export async function activate(context: vscode.ExtensionContext) {
                                         vscode.window.showWarningMessage('No Service ID found. Please set a Service ID first.');
                                     }
                                 } else {
-                                    // Execute the selected GUI action
                                     vscode.commands.executeCommand(guiSelected.action);
                                 }
                             }
@@ -734,18 +634,16 @@ export async function activate(context: vscode.ExtensionContext) {
                             }
                             keepMenuOpen = false;
                         } else if (selected.action === 'openDocs') {
-                            // Create and show webview panel for docs inside VS Code
                             const panel = vscode.window.createWebviewPanel(
-                                'zeropsDocs', // Unique ID
-                                'Zerops Documentation', // Title displayed in the tab
-                                vscode.ViewColumn.One, // Open in the first editor column
+                                'zeropsDocs',
+                                'Zerops Documentation',
+                                vscode.ViewColumn.One,
                                 {
-                                    enableScripts: true, // Enable JavaScript in the webview
-                                    retainContextWhenHidden: true, // Keep the webview content when hidden
+                                    enableScripts: true,
+                                    retainContextWhenHidden: true,
                                 }
                             );
                             
-                            // Set the webview's HTML content - loading the docs website
                             panel.webview.html = `
                                 <!DOCTYPE html>
                                 <html lang="en">
@@ -775,7 +673,6 @@ export async function activate(context: vscode.ExtensionContext) {
                             
                             keepMenuOpen = false;
                         } else {
-                            // For operational commands, execute and close menu
                             vscode.commands.executeCommand(selected.action);
                             keepMenuOpen = selected.keepOpen;
                         }
@@ -786,37 +683,31 @@ export async function activate(context: vscode.ExtensionContext) {
                 }
             });
             
-            // Create dedicated Explore Service button
             serviceStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 2);
             serviceStatusBarItem.text = "$(server) zService";
             serviceStatusBarItem.tooltip = "Explore Zerops Service";
             serviceStatusBarItem.command = 'zerops.exploreServiceFromStatusBar';
             
-            // Create dedicated Explore GUI button
             guiStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 1);
             guiStatusBarItem.text = "$(globe) zGUI";
             guiStatusBarItem.tooltip = "Explore Zerops GUI";
             guiStatusBarItem.command = 'zerops.exploreGuiFromStatusBar';
             
-            // Create dedicated Push button
             pushStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
             pushStatusBarItem.text = "$(cloud-upload) zPush";
             pushStatusBarItem.tooltip = "Push to Zerops";
             pushStatusBarItem.command = 'zerops.pushFromStatusBar';
             
-            // Create dedicated VPN Up button (moved to right side)
             vpnUpStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 1);
             vpnUpStatusBarItem.text = "$(plug) zVpn Up";
             vpnUpStatusBarItem.tooltip = "Connect to Zerops VPN";
             vpnUpStatusBarItem.command = 'zerops.vpnUpFromStatusBar';
             
-            // Create dedicated VPN Down button on the right side
             vpnDownStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 0);
             vpnDownStatusBarItem.text = "$(debug-disconnect) zVpn Down";
             vpnDownStatusBarItem.tooltip = "Disconnect from Zerops VPN";
             vpnDownStatusBarItem.command = 'zerops.vpnDownFromStatusBar';
             
-            // Show all status bar items
             zeropsStatusBarItem.show();
             pushStatusBarItem.show();
             vpnUpStatusBarItem.show();
@@ -824,7 +715,6 @@ export async function activate(context: vscode.ExtensionContext) {
             guiStatusBarItem.show();
             vpnDownStatusBarItem.show();
             
-            // Register all status bar items with the extension context
             context.subscriptions.push(zeropsStatusBarItem);
             context.subscriptions.push(pushStatusBarItem);
             context.subscriptions.push(vpnUpStatusBarItem);
@@ -838,7 +728,6 @@ export async function activate(context: vscode.ExtensionContext) {
             console.error('Failed to create status bar items:', error);
         }
 
-        // Register other commands
         let loginCommand = vscode.commands.registerCommand('zerops.login', async () => {
             try {
                 const token = await vscode.window.showInputBox({
@@ -904,7 +793,6 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         });
 
-        // Register the extension commands
         let openDashboardCommand = vscode.commands.registerCommand('zerops.openDashboard', async () => {
             try {
                 vscode.env.openExternal(vscode.Uri.parse('https://app.zerops.io/dashboard/projects'));
@@ -942,14 +830,11 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         });
 
-        // Add a command to handle Explore Service from status bar
         let exploreServiceFromStatusBarCommand = vscode.commands.registerCommand('zerops.exploreServiceFromStatusBar', async () => {
             try {
-                // Check if project settings exist
                 const settings = await CliService.loadProjectSettings();
                 
                 if (!settings || !settings.serviceId) {
-                    // No service ID saved, prompt the user to enter one
                     const serviceId = await vscode.window.showInputBox({
                         prompt: 'Enter your Zerops Service ID',
                         placeHolder: 'Service ID from Zerops Dashboard',
@@ -960,10 +845,9 @@ export async function activate(context: vscode.ExtensionContext) {
                     });
                     
                     if (!serviceId) {
-                        return; // User cancelled
+                        return;
                     }
                     
-                    // Save the service ID
                     await CliService.saveProjectSettings({ 
                         serviceId,
                         projectId: settings?.projectId || ''
@@ -972,7 +856,6 @@ export async function activate(context: vscode.ExtensionContext) {
                     vscode.window.showInformationMessage('Service ID saved successfully');
                 }
                 
-                // Show service options
                 const serviceOptions = [
                     { label: '$(open-editors-view-icon) Open Service', action: 'zerops.openServiceDashboard', description: 'Opens on Web' },
                     { label: '$(compare-changes) Pipelines & CI/CD', action: 'openServiceDeploy', description: 'Opens on Web' },
@@ -991,8 +874,6 @@ export async function activate(context: vscode.ExtensionContext) {
                 
                 if (serviceSelected) {
                     if (serviceSelected.action === 'backToGuiMenu') {
-                        // Stay on the same command, but recreate the GUI menu without going back to main menu
-                        // Create a new instance of the GUI menu in the current context
                         const guiOptions = [
                             { label: '$(browser) Open GUI', action: 'zerops.openDashboard', description: 'Opens on Web' },
                         ];
@@ -1011,28 +892,22 @@ export async function activate(context: vscode.ExtensionContext) {
                             description: 'Return to main menu' 
                         });
                         
-                        // Show the GUI menu directly instead of re-triggering the command
                         const guiSelected = await vscode.window.showQuickPick(guiOptions, {
                             placeHolder: 'Select GUI to open'
                         });
                         
                         if (guiSelected) {
                             if (guiSelected.action === 'goBack') {
-                                // Just return, which closes the menu
                                 return;
                             } else if (guiSelected.action === 'exploreService') {
-                                // Display the service options again (re-show the menu we came from)
                                 vscode.commands.executeCommand('zerops.exploreServiceFromStatusBar');
                             } else {
-                                // Execute the selected GUI action
                                 vscode.commands.executeCommand(guiSelected.action);
                             }
                         }
                     } else if (serviceSelected.action === 'zerops.openServiceDashboard') {
-                        // Use the existing command for service dashboard
                         vscode.commands.executeCommand(serviceSelected.action);
                     } else {
-                        // Handle custom service URLs
                         let url = '';
                         switch (serviceSelected.action) {
                             case 'openServiceDeploy':
@@ -1069,20 +944,16 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         });
 
-        // Add a command to handle Explore GUI from status bar
         let exploreGuiFromStatusBarCommand = vscode.commands.registerCommand('zerops.exploreGuiFromStatusBar', async () => {
             try {
-                // Check if project settings exist
                 const settings = await CliService.loadProjectSettings();
                 const hasServiceId = settings && settings.serviceId;
                 const hasProjectId = settings && settings.projectId;
                 
-                // Create submenu options for GUI navigation
                 const guiOptions = [
                     { label: '$(browser) Open GUI', action: 'zerops.openDashboard', description: 'Opens on Web' },
                 ];
                 
-                // Add project option if available
                 if (hasProjectId) {
                     guiOptions.push({ 
                         label: '$(project) Open Project', 
@@ -1091,7 +962,6 @@ export async function activate(context: vscode.ExtensionContext) {
                     });
                 }
                 
-                // Add Explore Service option if available
                 if (hasServiceId) {
                     guiOptions.push({ 
                         label: '$(server) Explore Service', 
@@ -1100,24 +970,20 @@ export async function activate(context: vscode.ExtensionContext) {
                     });
                 }
                 
-                // Add Go Back option at the bottom
                 guiOptions.push({ 
                     label: '$(arrow-left) Go Back', 
                     action: 'goBack', 
                     description: 'Return to main menu' 
                 });
                 
-                // Show the submenu
                 const guiSelected = await vscode.window.showQuickPick(guiOptions, {
                     placeHolder: 'Select GUI to open'
                 });
                 
                 if (guiSelected) {
                     if (guiSelected.action === 'goBack') {
-                        // Just return, closing the menu
                         return;
                     } else if (guiSelected.action === 'exploreService') {
-                        // Show service-specific options directly in the current flow
                         if (settings.serviceId) {
                             const serviceOptions = [
                                 { label: '$(open-editors-view-icon) Open Service', action: 'zerops.openServiceDashboard', description: 'Opens on Web' },
@@ -1137,13 +1003,10 @@ export async function activate(context: vscode.ExtensionContext) {
                             
                             if (serviceSelected) {
                                 if (serviceSelected.action === 'backToGuiMenu') {
-                                    // Just return to the previous menu
                                     vscode.commands.executeCommand('zerops.exploreGuiFromStatusBar');
                                 } else if (serviceSelected.action === 'zerops.openServiceDashboard') {
-                                    // Use the existing command for service dashboard
                                     vscode.commands.executeCommand(serviceSelected.action);
                                 } else {
-                                    // Handle custom service URLs
                                     let url = '';
                                     switch (serviceSelected.action) {
                                         case 'openServiceDeploy':
@@ -1178,7 +1041,6 @@ export async function activate(context: vscode.ExtensionContext) {
                             vscode.window.showWarningMessage('No Service ID found. Please set a Service ID first.');
                         }
                     } else {
-                        // Execute the selected GUI action
                         vscode.commands.executeCommand(guiSelected.action);
                     }
                 }
@@ -1188,7 +1050,6 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         });
 
-        // Include the new commands in the context subscriptions
         context.subscriptions.push(
             loginCommand,
             logoutCommand,
@@ -1215,7 +1076,6 @@ export async function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
     console.log('Deactivating Zerops extension...');
     
-    // Clean up status bar items if they exist
     if (zeropsStatusBarItem) {
         zeropsStatusBarItem.dispose();
     }

@@ -420,10 +420,8 @@ export class CliService {
         }
     }
 
-    // Update login status after login/logout actions
     static updateLoginStatus(status: boolean): void {
         this.isLoggedIn = status;
-        // Also trigger a UI refresh if needed
         vscode.commands.executeCommand('setContext', 'zerops.isLoggedIn', status);
     }
 } 

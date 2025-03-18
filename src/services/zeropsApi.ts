@@ -122,7 +122,7 @@ function withMaxRetries(maxRetries: number): ConfigOption {
 
 function defaultConfig(...options: ConfigOption[]): Config {
     const config: Config = {
-        endpoint: 'https://api.app-prg1.zerops.io',  // Base URL
+        endpoint: 'https://api.app-prg1.zerops.io',
         timeout: 30000,
         maxRetries: 2
     };
@@ -159,7 +159,6 @@ async function makeRequest<T>(url: string, options: https.RequestOptions, data?:
         const req = https.request(requestOptions, res => {
             let data = '';
             
-            // Handle redirects like in the fetch example
             if (res.statusCode === 301) {
                 console.error('Redirected URL:', res.headers.location);
                 const redirectUrl = res.headers.location;
@@ -214,7 +213,6 @@ class ZeropsClient {
         this.config = defaultConfig(...options);
         this.token = token;
         
-        // Match headers exactly with working example
         this.headers = {
             'Accept': 'application/json, text/plain, */*'
         };
@@ -225,7 +223,7 @@ class ZeropsClient {
     }
 
     private getApiUrl(): string {
-        return `${this.config.endpoint}/api/rest/public`;  // Added /public to match working URL
+        return `${this.config.endpoint}/api/rest/public`;
     }
 
     private async doRequest<T>(
@@ -301,7 +299,6 @@ export class ZeropsApi {
         this.context = context;
         this.config = defaultConfig(...options);
         
-        // Initialize the client if we have a stored token
         const token = context.globalState.get<string>('zeropsToken');
         if (token) {
             this.client = new ZeropsClient(token, ...options);
@@ -329,21 +326,17 @@ export class ZeropsApi {
             throw new Error('Access token is required');
         }
 
-        // Create client with default region first
         this.client = new ZeropsClient(token, 
             withCustomEndpoint(this.config.endpoint)
         );
 
-        // First try to login
         const loginSuccess = await this.client.login();
         if (!loginSuccess) {
             throw new Error('Login failed');
         }
 
-        // Then get user info
         const userInfo = await this.client.getUserInfo();
         
-        // Store token and user info
         await this.context?.globalState.update('zeropsToken', token);
         await this.context?.globalState.update('zeropsUserInfo', userInfo);
         
@@ -390,7 +383,6 @@ export class ZeropsApi {
         return this.client.getUserInfo();
     }
 
-    // New methods for public API
     static async getPublicApiStatus(): Promise<any> {
         const url = `${this.publicApiEndpoint}/status`;
         return await makeRequest(url, {
@@ -411,7 +403,6 @@ export class ZeropsApi {
         });
     }
 
-    // Add more public API methods as needed based on the Swagger documentation
     static async getPublicApiHealth(): Promise<any> {
         const url = `${this.publicApiEndpoint}/health`;
         return await makeRequest(url, {
