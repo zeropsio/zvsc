@@ -1,11 +1,44 @@
 {
     "name": "zvsc",
-    "displayName": "zVsc",
-    "description": "zVsc is a VSCode extension for deploying your code to Zerops",
+    "displayName": "Zerops VSCode Extension",
+    "description": "Official VS Code extension for Zerops - deploy, manage and monitor your cloud applications directly from your vs code.",
     "version": "0.0.1",
     "engines": {
         "vscode": "^1.60.0"
     },
+    "icon": "resources/zerops-icon.png",
+    "galleryBanner": {
+        "color": "#0066FF",
+        "theme": "dark"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/zeropsio/zVsc-main.git"
+    },
+    "homepage": "https://zerops.io",
+    "bugs": {
+        "url": "https://github.com/zeropsio/zVsc-main/issues"
+    },
+    "license": "MIT",
+    "publisher": "Zerops",
+    "author": {
+        "name": "Zerops",
+        "email": "info@zerops.io"
+    },
+    "keywords": [
+        "zerops",
+        "cloud",
+        "deploy",
+        "deployment",
+        "devops",
+        "paas",
+        "hosting",
+        "ci-cd",
+        "development"
+    ],
+    "activationEvents": [
+        "onStartupFinished"
+    ],
     "scripts": {
         "compile": "tsc -p ./",
         "watch": "tsc -watch -p ./"
@@ -15,24 +48,6 @@
     ],
     "main": "./out/extension.js",
     "contributes": {
-        "viewsContainers": {
-            "activitybar": [
-                {
-                    "id": "zvsc",
-                    "title": "zVsc",
-                    "icon": "resources/zerops.svg"
-                }
-            ]
-        },
-        "views": {
-            "zvsc": [
-                {
-                    "type": "webview",
-                    "id": "zVsc",
-                    "name": "zVsc"
-                }
-            ]
-        },
         "configuration": {
             "title": "Zerops",
             "properties": {
@@ -59,6 +74,18 @@
             {
                 "command": "zerops.initProject",
                 "title": "Zerops: Initialize Project"
+            },
+            {
+                "command": "zerops.openDashboard",
+                "title": "Zerops: Open Dashboard"
+            },
+            {
+                "command": "zerops.openProjectDashboard",
+                "title": "Zerops: Open Project Dashboard"
+            },
+            {
+                "command": "zerops.openServiceDashboard",
+                "title": "Zerops: Open Service Dashboard"
             }
         ]
     },
@@ -70,6 +97,6 @@
     "devDependencies": {
         "@types/node": "^14.17.0",
         "@types/vscode": "^1.60.0",
-        "typescript": "^4.4.3"
+        "typescript": "^4.9.5"
     }
 }
