@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <b>Official VS Code extension for Zerops - deploy, manage and monitor your cloud applications directly from your editor.</b>
+  <b>Official VS Code extension for Interacting with Zerops</b>
 </p>
 
 <!-- <p align="center">
