@@ -1,11 +1,9 @@
-# Zerops VS Code Extension
-
 <p align="center">
   <img src="resources/banner.png" alt="Zerops Logo">
 </p>
 
 <p align="center">
-  <b>Official VS Code extension for Interacting with Zerops</b>
+  <b>zVSC: Zerops VS Code Extension. Official VS Code extension for Interacting with Zerops</b>
 </p>
 
 <!-- <p align="center">
