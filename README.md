@@ -3,8 +3,9 @@
 </p>
 
 <p align="center">
-  <b>zVSC: Zerops VS Code Extension. Official VS Code extension for Interacting with Zerops</b>
+  <b>zVSC: Zerops VS Code Extension</b>
 </p>
+<p align="center">Official VS Code extension for Interacting with Zerops</p>
 
 <!-- <p align="center">
   <a href="https://marketplace.visualstudio.com/items?itemName=Zerops.zvsc">
