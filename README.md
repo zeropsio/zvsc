@@ -2,10 +2,9 @@
   <img src="resources/banner.png" alt="Zerops Logo">
 </p>
 
-<h2 align="center">
-  zVSC: Zerops VS Code Extension
-</h2>
-<p align="center">Official VS Code extension for Interacting with Zerops</p>
+<p align="center">
+  <b>zVSC: Zerops VS Code Extension for Interacting with Zerops</b>
+</p>
 
 <!-- <p align="center">
   <a href="https://marketplace.visualstudio.com/items?itemName=Zerops.zvsc">
