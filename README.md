@@ -8,7 +8,7 @@
   <b>Official VS Code extension for Zerops - deploy, manage and monitor your cloud applications directly from your editor.</b>
 </p>
 
-<p align="center">
+<!-- <p align="center">
   <a href="https://marketplace.visualstudio.com/items?itemName=Zerops.zvsc">
     <img src="https://img.shields.io/visual-studio-marketplace/v/Zerops.zvsc" alt="Visual Studio Marketplace Version">
   </a>
@@ -21,7 +21,7 @@
   <a href="https://github.com/zeropsio/zVsc-main/blob/main/LICENSE">
     <img src="https://img.shields.io/github/license/zeropsio/zVsc-main" alt="License">
   </a>
-</p>
+</p> -->
 
 ## Features
 
