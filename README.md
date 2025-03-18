@@ -1,5 +1,8 @@
 # ⚡️ zVSC
 
+![Frame 330](https://github.com/user-attachments/assets/f03e0f74-8cda-4e39-9932-d23939a340a6)
+
+
 A Visual Studio Code extension for interacting with Zerops.
 
 ## Features
