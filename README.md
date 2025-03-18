@@ -58,43 +58,43 @@
 2. Type "Zerops: Login" and select it
 3. Paste your access token when prompted
    
-Alternatively, use the Zerops menu in the status bar by clicking the rocket icon.
+Alternatively, use the Zerops menu in the status bar by clicking the rocket option.
 
 ## Usage
 
 ### Status Bar Controls
 
-The extension adds several icons to your VS Code status bar:
+The extension adds several options to your VS Code status bar:
 
-- **$(rocket) Zerops**: Main menu for all Zerops commands
-- **$(cloud-upload) zPush**: Push your code to Zerops
-- **$(server) zService**: Explore service options
-- **$(globe) zGUI**: Open Zerops dashboard
-- **$(plug) zVpn Up**: Connect to Zerops VPN
-- **$(debug-disconnect) zVpn Down**: Disconnect from Zerops VPN
+- **Zerops**: Main menu for all Zerops commands
+- **zPush**: Push your code to Zerops
+- **zService**: Explore service options
+- **zGUI**: Open Zerops dashboard
+- **zVpn Up**: Connect to Zerops VPN
+- **zVpn Down**: Disconnect from Zerops VPN
 
 ### Main Commands
 
 #### Deploying Code
 
-1. Click the "$(rocket) Zerops" icon in the status bar
+1. Click the "Zerops" option in the status bar
 2. Select "Push to Zerops"
 3. Select your target service (or configure one if not set up)
 
 #### Accessing Zerops Dashboard
 
-1. Click the "$(rocket) Zerops" icon
+1. Click the "Zerops" option
 2. Select "Explore GUI" and then "Open GUI"
 
 #### Using Recipe Templates
 
-1. Click the "$(rocket) Zerops" icon
+1. Click the "Zerops" option
 2. Select "Clone Recipe"
 3. Choose from available templates
 
 #### Configuration Management
 
-1. Click the "$(rocket) Zerops" icon
+1. Click the "Zerops" option
 2. Select "Init Configurations"
 3. Choose "Init zerops.yml" or "Init zerops-project-import.yml"
 
@@ -102,7 +102,7 @@ The extension adds several icons to your VS Code status bar:
 
 To configure your project, set up the service and project IDs:
 
-1. Click the "$(rocket) Zerops" icon
+1. Click the "Zerops" option
 2. Select "Settings"
 3. Choose "Add Service ID" or "Add Project ID"
 4. Enter the IDs from your Zerops dashboard
