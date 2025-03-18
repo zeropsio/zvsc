@@ -1,8 +1,8 @@
 {
     "name": "zvsc",
-    "displayName": "Zerops VSCode Extension",
+    "displayName": "zVSC",
     "description": "Official VS Code extension for Zerops - deploy, manage and monitor your cloud applications directly from your vs code.",
-    "version": "0.0.1",
+    "version": "1.0.0",
     "engines": {
         "vscode": "^1.60.0"
     },
@@ -28,12 +28,17 @@
     "keywords": [
         "zerops",
         "cloud",
-        "deploy",
+        "zerops deploy",
         "deployment",
         "devops",
         "paas",
         "hosting",
-        "ci-cd",
+        "zcli",
+        "zcli push",
+        "zvsc",
+        "zerops extension",
+        "zerops vscode",
+        "zerops vscode extension",
         "development"
     ],
     "activationEvents": [
@@ -54,7 +59,7 @@
                 "zvsc.accessToken": {
                     "type": "string",
                     "default": "",
-                    "description": "Zerops API Access Token"
+                    "description": "Zerops Personal Access Token"
                 }
             }
         },
