@@ -17,6 +17,7 @@ export class CliService {
     private static currentPushProcess: ReturnType<typeof spawn> | null = null;
     private static zeropsTerminal: vscode.Terminal | null = null;
     private static isLoggedIn: boolean = false; // Track login status
+    private static projectsCache: {id: string, name: string}[] | null = null; // Cache for projects list
 
     private static getOutputChannel(): vscode.OutputChannel {
         if (!this.outputChannel) {
@@ -198,49 +199,68 @@ export class CliService {
             const { stdout, stderr } = await this.executeCommand(`login ${token}`, { appendToOutput: false });
             
             // Check for error message in stderr
-            if (stderr && !stderr.includes('Welcome') && stderr.includes('Error')) {
-                throw new Error(stderr);
+            if (stderr && (stderr.includes('error') || stderr.includes('Error'))) {
+                throw new Error(`Login failed: ${stderr}`);
             }
             
-            // Store the token if context is provided
-            if (context) {
-                await context.secrets.store('zerops-token', token);
+            const success = stdout.includes('Success') || !stderr.includes('error');
+            
+            if (success) {
+                console.log('Login successful');
+                
+                // Store the token if context is provided
+                if (context) {
+                    await context.secrets.store('zerops-token', token);
+                }
+                
+                vscode.window.showInformationMessage('Successfully logged in to Zerops');
+                this.updateLoginStatus(true);
+                
+                // Fetch projects in background after successful login
+                this.listProjects(false).catch(error => {
+                    console.error('Initial projects fetch after login failed:', error);
+                    // Silent failure - user can still use the extension
+                });
+            } else {
+                console.error('Login failed:', stderr);
+                vscode.window.showErrorMessage(`Failed to login: ${stderr}`);
+                this.updateLoginStatus(false);
             }
-            
-            // Set login status to true
-            this.updateLoginStatus(true);
-            
-            // Success message through notification
-            vscode.window.showInformationMessage('Successfully logged in to Zerops');
         } catch (error) {
             console.error('Login failed:', error);
+            
+            // Delete the token from secrets if context is provided
             if (context) {
                 await context.secrets.delete('zerops-token');
             }
+            
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            vscode.window.showErrorMessage(`Login failed: ${errorMessage}`);
             this.updateLoginStatus(false);
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-            vscode.window.showErrorMessage(`Failed to login to Zerops: ${errorMessage}`);
             throw error;
         }
     }
 
-    static async logout(context: vscode.ExtensionContext): Promise<void> {
+    static async logout(context?: vscode.ExtensionContext): Promise<void> {
         try {
-            // Use executeCommand to run zcli logout rather than using the terminal
-            await this.executeCommand('logout', { appendToOutput: false });
+            console.log('Logging out from Zerops...');
             
-            // Delete the stored token
-            await context.secrets.delete('zerops-token');
+            // Use executeCommand to run zcli logout
+            const { stdout, stderr } = await this.executeCommand('logout', { appendToOutput: false });
             
-            // Set login status to false
+            if (context) {
+                await context.secrets.delete('zerops-token');
+            }
+            
+            // Clear the projects cache
+            this.clearProjectsCache();
+            
             this.updateLoginStatus(false);
-            
-            // Success message through notification
             vscode.window.showInformationMessage('Successfully logged out from Zerops');
         } catch (error) {
             console.error('Logout failed:', error);
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-            vscode.window.showErrorMessage(`Failed to logout from Zerops: ${errorMessage}`);
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            vscode.window.showErrorMessage(`Failed to logout: ${errorMessage}`);
             throw error;
         }
     }
@@ -423,5 +443,48 @@ export class CliService {
     static updateLoginStatus(status: boolean): void {
         this.isLoggedIn = status;
         vscode.commands.executeCommand('setContext', 'zerops.isLoggedIn', status);
+    }
+    
+    static async listProjects(useCache: boolean = true): Promise<{id: string, name: string}[]> {
+        try {
+            // Return cached data if available and requested
+            if (useCache && this.projectsCache !== null) {
+                return this.projectsCache;
+            }
+            
+            const { stdout } = await this.executeCommand('project list', { appendToOutput: true });
+            // Parse the stdout to extract project IDs and names
+            const projects: {id: string, name: string}[] = [];
+            
+            // Split by lines and process the table output (skipping header and separator lines)
+            const lines = stdout.split('\n');
+            for (let i = 2; i < lines.length; i++) {
+                const line = lines[i].trim();
+                // Skip empty lines and separator lines
+                if (line === '' || line.startsWith('├') || line.startsWith('└') || line.startsWith('┌')) {
+                    continue;
+                }
+                
+                // Parse line using regex to extract ID and Name from table format
+                const match = line.match(/│\s+([a-zA-Z0-9+/=]+)\s+│\s+([^│]+)/);
+                if (match && match.length >= 3) {
+                    const id = match[1].trim();
+                    const name = match[2].trim();
+                    projects.push({ id, name });
+                }
+            }
+            
+            // Cache the fetched projects
+            this.projectsCache = projects;
+            
+            return projects;
+        } catch (error) {
+            console.error('Failed to list projects:', error);
+            throw error;
+        }
+    }
+    
+    static clearProjectsCache() {
+        this.projectsCache = null;
     }
 } 

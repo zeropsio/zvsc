@@ -13,6 +13,22 @@ let serviceStatusBarItem: vscode.StatusBarItem;
 let guiStatusBarItem: vscode.StatusBarItem;
 let vpnDownStatusBarItem: vscode.StatusBarItem;
 
+function updateStatusBarVisibility() {
+    // Check if there's an active editor
+    const activeEditor = vscode.window.activeTextEditor;
+    if (activeEditor) {
+        // Show status bar items when there's an active editor
+        if (zeropsStatusBarItem) zeropsStatusBarItem.show();
+        if (pushStatusBarItem) pushStatusBarItem.show();
+        if (vpnUpStatusBarItem) vpnUpStatusBarItem.show();
+        if (serviceStatusBarItem) serviceStatusBarItem.show();
+        if (guiStatusBarItem) guiStatusBarItem.show();
+        if (vpnDownStatusBarItem) vpnDownStatusBarItem.show();
+    } else {
+        // Optional: hide some items when no editor is active
+    }
+}
+
 export async function activate(context: vscode.ExtensionContext) {
     console.log('Activating Zerops extension...');
     
@@ -37,6 +53,25 @@ export async function activate(context: vscode.ExtensionContext) {
             console.log('User is already logged in');
         }
 
+        // Fetch projects in the background on startup
+        CliService.listProjects(false).catch(error => {
+            console.error('Failed to fetch projects on startup:', error);
+        });
+        
+        vscode.window.onDidChangeActiveTextEditor(editor => {
+            if (editor) {
+                updateStatusBarVisibility();
+            }
+        });
+        
+        updateStatusBarVisibility();
+        
+        guiStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 1);
+        guiStatusBarItem.text = "$(globe) zGUI";
+        guiStatusBarItem.tooltip = "Explore Zerops GUI";
+        guiStatusBarItem.command = 'zerops.exploreGuiFromStatusBar';
+        guiStatusBarItem.show();
+        
         let pushFromStatusBarCommand = vscode.commands.registerCommand('zerops.pushFromStatusBar', async () => {
             try {
                 const settings = await CliService.loadProjectSettings();
@@ -485,140 +520,61 @@ export async function activate(context: vscode.ExtensionContext) {
                                 keepMenuOpen = true;
                             }
                         } else if (selected.action === 'exploreGui') {
-                            const guiOptions = [
-                                { label: '$(browser) Open GUI', action: 'zerops.openDashboard', description: 'Opens on Web' },
-                            ];
-                            
-                            if (hasProjectId) {
-                                guiOptions.push({ 
-                                    label: '$(project) Open Project', 
-                                    action: 'zerops.openProjectDashboard', 
-                                    description: `Opens on Web` 
+                            try {
+                                // Trigger background fetch of projects for later use
+                                CliService.listProjects(false).catch(error => {
+                                    console.error('Background project fetch failed:', error);
                                 });
-                            }
-                            
-                            if (hasServiceId) {
-                                guiOptions.push({ 
-                                    label: '$(server) Explore Service', 
-                                    action: 'exploreService', 
-                                    description: `Explore service options` 
-                                });
-                            }
-                            
-                            guiOptions.push({ 
-                                label: '$(arrow-left) Go Back', 
-                                action: 'goBack', 
-                                description: 'Return to main menu' 
-                            });
-                            
-                            const guiSelected = await vscode.window.showQuickPick(guiOptions, {
-                                placeHolder: 'Select GUI to open'
-                            });
-                            
-                            if (guiSelected) {
-                                if (guiSelected.action === 'goBack') {
-                                    keepMenuOpen = true;
-                                } else if (guiSelected.action === 'exploreService') {
-                                    if (settings.serviceId) {
-                                        const serviceOptions = [
-                                            { label: '$(open-editors-view-icon) Open Service', action: 'zerops.openServiceDashboard', description: 'Opens on Web' },
-                                            { label: '$(compare-changes) Pipelines & CI/CD', action: 'openServiceDeploy', description: 'Opens on Web' },
-                                            { label: '$(globe) Subdomain, Domain & IP access', action: 'openServiceRouting', description: 'Opens on Web' },
-                                            { label: '$(database) Automatic Scaling', action: 'openServiceAutoscaling', description: 'Opens on Web' },
-                                            { label: '$(settings-gear) Environment Variables', action: 'openServiceUserData', description: 'Opens on Web' },
-                                            { label: '$(debug) Runtime Log', action: 'openServiceLog', description: 'Opens on Web' },
-                                            { label: '$(terminal) Remote Web Terminal', action: 'openServiceTerminal', description: 'Opens on Web' },
-                                            { label: '$(file-directory) File Browser', action: 'openServiceFileBrowser', description: 'Opens on Web' },
-                                            { label: '$(arrow-left) Go Back', action: 'backToGuiMenu', description: 'Return to previous menu' }
-                                        ];
-                                        
-                                        const serviceSelected = await vscode.window.showQuickPick(serviceOptions, {
-                                            placeHolder: 'Select Service option'
-                                        });
-                                        
-                                        if (serviceSelected) {
-                                            if (serviceSelected.action === 'backToGuiMenu') {
-                                                const guiOptions = [
-                                                    { label: '$(browser) Open GUI', action: 'zerops.openDashboard', description: 'Opens on Web' },
-                                                ];
-                                                
-                                                if (hasProjectId) {
-                                                    guiOptions.push({ 
-                                                        label: '$(project) Open Project', 
-                                                        action: 'zerops.openProjectDashboard', 
-                                                        description: `Opens on Web` 
-                                                    });
-                                                }
-                                                
-                                                if (hasServiceId) {
-                                                    guiOptions.push({ 
-                                                        label: '$(server) Explore Service', 
-                                                        action: 'exploreService', 
-                                                        description: `Explore service options` 
-                                                    });
-                                                }
-                                                
-                                                guiOptions.push({ 
-                                                    label: '$(arrow-left) Go Back', 
-                                                    action: 'goBack', 
-                                                    description: 'Return to main menu' 
-                                                });
-                                                
-                                                const nextGuiSelected = await vscode.window.showQuickPick(guiOptions, {
-                                                    placeHolder: 'Select GUI to open'
-                                                });
-                                                
-                                                if (nextGuiSelected) {
-                                                    if (nextGuiSelected.action === 'goBack') {
-                                                        keepMenuOpen = true;
-                                                    } else if (nextGuiSelected.action === 'exploreService') {
-                                                        keepMenuOpen = true;
-                                                    } else {
-                                                        vscode.commands.executeCommand(nextGuiSelected.action);
-                                                        keepMenuOpen = false;
-                                                    }
-                                                } else {
-                                                    keepMenuOpen = true;
-                                                }
-                                            } else if (serviceSelected.action === 'zerops.openServiceDashboard') {
-                                                vscode.commands.executeCommand(serviceSelected.action);
-                                            } else {
-                                                let url = '';
-                                                switch (serviceSelected.action) {
-                                                    case 'openServiceDeploy':
-                                                        url = `https://app.zerops.io/service-stack/${settings.serviceId}/deploy`;
-                                                        break;
-                                                    case 'openServiceRouting':
-                                                        url = `https://app.zerops.io/service-stack/${settings.serviceId}/routing`;
-                                                        break;
-                                                    case 'openServiceAutoscaling':
-                                                        url = `https://app.zerops.io/service-stack/${settings.serviceId}/autoscaling`;
-                                                        break;
-                                                    case 'openServiceUserData':
-                                                        url = `https://app.zerops.io/service-stack/${settings.serviceId}/user-data`;
-                                                        break;
-                                                    case 'openServiceLog':
-                                                        url = `https://app.zerops.io/service-stack/${settings.serviceId}/log`;
-                                                        break;
-                                                    case 'openServiceTerminal':
-                                                        url = `https://app.zerops.io/service-stack/${settings.serviceId}/terminal`;
-                                                        break;
-                                                    case 'openServiceFileBrowser':
-                                                        url = `https://app.zerops.io/service-stack/${settings.serviceId}/file-browser`;
-                                                        break;
-                                                }
-                                                
-                                                if (url) {
-                                                    vscode.env.openExternal(vscode.Uri.parse(url));
-                                                }
-                                            }
-                                        }
-                                    } else {
-                                        vscode.window.showWarningMessage('No Service ID found. Please set a Service ID first.');
-                                    }
-                                } else {
-                                    vscode.commands.executeCommand(guiSelected.action);
+                                
+                                const settings = await CliService.loadProjectSettings();
+                                const hasServiceId = settings && settings.serviceId;
+                                const hasProjectId = settings && settings.projectId;
+                                
+                                const guiOptions = [
+                                    { label: '$(browser) Open GUI', action: 'zerops.openDashboard', description: 'Opens on Web' },
+                                    { label: '$(project) Explore Projects', action: 'exploreProjects', description: 'List all projects' },
+                                ];
+                                
+                                if (hasProjectId) {
+                                    guiOptions.push({ 
+                                        label: '$(project) Open Project', 
+                                        action: 'zerops.openProjectDashboard', 
+                                        description: `Opens on Web` 
+                                    });
                                 }
+                                
+                                if (hasServiceId) {
+                                    guiOptions.push({ 
+                                        label: '$(server) Explore Service', 
+                                        action: 'exploreService', 
+                                        description: `Explore service options` 
+                                    });
+                                }
+                                
+                                guiOptions.push({ 
+                                    label: '$(arrow-left) Go Back', 
+                                    action: 'goBack', 
+                                    description: 'Return to main menu' 
+                                });
+                                
+                                const guiSelected = await vscode.window.showQuickPick(guiOptions, {
+                                    placeHolder: 'Select GUI to open'
+                                });
+                                
+                                if (guiSelected) {
+                                    if (guiSelected.action === 'goBack') {
+                                        return;
+                                    } else if (guiSelected.action === 'exploreProjects') {
+                                        await handleExploreProjects();
+                                    } else if (guiSelected.action === 'exploreService') {
+                                        await handleExploreService(settings);
+                                    } else {
+                                        vscode.commands.executeCommand(guiSelected.action);
+                                    }
+                                }
+                            } catch (error) {
+                                console.error('Failed to open GUI menu:', error);
+                                vscode.window.showErrorMessage('Failed to open GUI menu');
                             }
                         } else if (selected.action === 'zerops.openDashboard') {
                             vscode.env.openExternal(vscode.Uri.parse('https://app.zerops.io/dashboard/projects'));
@@ -688,11 +644,6 @@ export async function activate(context: vscode.ExtensionContext) {
             serviceStatusBarItem.tooltip = "Explore Zerops Service";
             serviceStatusBarItem.command = 'zerops.exploreServiceFromStatusBar';
             
-            guiStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 1);
-            guiStatusBarItem.text = "$(globe) zGUI";
-            guiStatusBarItem.tooltip = "Explore Zerops GUI";
-            guiStatusBarItem.command = 'zerops.exploreGuiFromStatusBar';
-            
             pushStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
             pushStatusBarItem.text = "$(cloud-upload) zPush";
             pushStatusBarItem.tooltip = "Push to Zerops";
@@ -728,36 +679,6 @@ export async function activate(context: vscode.ExtensionContext) {
             console.error('Failed to create status bar items:', error);
         }
 
-        let loginCommand = vscode.commands.registerCommand('zerops.login', async () => {
-            try {
-                const token = await vscode.window.showInputBox({
-                    prompt: 'Enter your Zerops Personal Access Token',
-                    placeHolder: 'Your token from Zerops Access Token Management',
-                    password: true,
-                    ignoreFocusOut: true,
-                    validateInput: (value: string) => {
-                        return value && value.length > 0 ? null : 'Token is required';
-                    }
-                });
-
-                if (token) {
-                    await CliService.login(token, context);
-                }
-            } catch (error) {
-                console.error('Login failed:', error);
-                vscode.window.showErrorMessage('Failed to login to Zerops');
-            }
-        });
-
-        let logoutCommand = vscode.commands.registerCommand('zerops.logout', async () => {
-            try {
-                await CliService.logout(context);
-            } catch (error) {
-                console.error('Logout failed:', error);
-                vscode.window.showErrorMessage('Failed to logout from Zerops');
-            }
-        });
-        
         let vpnUpCommand = vscode.commands.registerCommand('zerops.vpnUp', async () => {
             try {
                 const projectId = await vscode.window.showInputBox({
@@ -874,37 +795,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 
                 if (serviceSelected) {
                     if (serviceSelected.action === 'backToGuiMenu') {
-                        const guiOptions = [
-                            { label: '$(browser) Open GUI', action: 'zerops.openDashboard', description: 'Opens on Web' },
-                        ];
-                        
-                        if (settings.projectId) {
-                            guiOptions.push({ 
-                                label: '$(project) Open Project', 
-                                action: 'zerops.openProjectDashboard', 
-                                description: `Opens on Web` 
-                            });
-                        }
-                        
-                        guiOptions.push({ 
-                            label: '$(arrow-left) Go Back', 
-                            action: 'goBack', 
-                            description: 'Return to main menu' 
-                        });
-                        
-                        const guiSelected = await vscode.window.showQuickPick(guiOptions, {
-                            placeHolder: 'Select GUI to open'
-                        });
-                        
-                        if (guiSelected) {
-                            if (guiSelected.action === 'goBack') {
-                                return;
-                            } else if (guiSelected.action === 'exploreService') {
-                                vscode.commands.executeCommand('zerops.exploreServiceFromStatusBar');
-                            } else {
-                                vscode.commands.executeCommand(guiSelected.action);
-                            }
-                        }
+                        vscode.commands.executeCommand('zerops.exploreGuiFromStatusBar');
                     } else if (serviceSelected.action === 'zerops.openServiceDashboard') {
                         vscode.commands.executeCommand(serviceSelected.action);
                     } else {
@@ -946,12 +837,18 @@ export async function activate(context: vscode.ExtensionContext) {
 
         let exploreGuiFromStatusBarCommand = vscode.commands.registerCommand('zerops.exploreGuiFromStatusBar', async () => {
             try {
+                // Trigger background fetch of projects for later use
+                CliService.listProjects(false).catch(error => {
+                    console.error('Background project fetch failed:', error);
+                });
+                
                 const settings = await CliService.loadProjectSettings();
                 const hasServiceId = settings && settings.serviceId;
                 const hasProjectId = settings && settings.projectId;
                 
                 const guiOptions = [
                     { label: '$(browser) Open GUI', action: 'zerops.openDashboard', description: 'Opens on Web' },
+                    { label: '$(project) Explore Projects', action: 'exploreProjects', description: 'List all projects' },
                 ];
                 
                 if (hasProjectId) {
@@ -983,63 +880,10 @@ export async function activate(context: vscode.ExtensionContext) {
                 if (guiSelected) {
                     if (guiSelected.action === 'goBack') {
                         return;
+                    } else if (guiSelected.action === 'exploreProjects') {
+                        await handleExploreProjects();
                     } else if (guiSelected.action === 'exploreService') {
-                        if (settings.serviceId) {
-                            const serviceOptions = [
-                                { label: '$(open-editors-view-icon) Open Service', action: 'zerops.openServiceDashboard', description: 'Opens on Web' },
-                                { label: '$(compare-changes) Pipelines & CI/CD', action: 'openServiceDeploy', description: 'Opens on Web' },
-                                { label: '$(globe) Subdomain, Domain & IP access', action: 'openServiceRouting', description: 'Opens on Web' },
-                                { label: '$(database) Automatic Scaling', action: 'openServiceAutoscaling', description: 'Opens on Web' },
-                                { label: '$(settings-gear) Environment Variables', action: 'openServiceUserData', description: 'Opens on Web' },
-                                { label: '$(debug) Runtime Log', action: 'openServiceLog', description: 'Opens on Web' },
-                                { label: '$(terminal) Remote Web Terminal', action: 'openServiceTerminal', description: 'Opens on Web' },
-                                { label: '$(file-directory) File Browser', action: 'openServiceFileBrowser', description: 'Opens on Web' },
-                                { label: '$(arrow-left) Go Back', action: 'backToGuiMenu', description: 'Return to previous menu' }
-                            ];
-                            
-                            const serviceSelected = await vscode.window.showQuickPick(serviceOptions, {
-                                placeHolder: 'Select Service option'
-                            });
-                            
-                            if (serviceSelected) {
-                                if (serviceSelected.action === 'backToGuiMenu') {
-                                    vscode.commands.executeCommand('zerops.exploreGuiFromStatusBar');
-                                } else if (serviceSelected.action === 'zerops.openServiceDashboard') {
-                                    vscode.commands.executeCommand(serviceSelected.action);
-                                } else {
-                                    let url = '';
-                                    switch (serviceSelected.action) {
-                                        case 'openServiceDeploy':
-                                            url = `https://app.zerops.io/service-stack/${settings.serviceId}/deploy`;
-                                            break;
-                                        case 'openServiceRouting':
-                                            url = `https://app.zerops.io/service-stack/${settings.serviceId}/routing`;
-                                            break;
-                                        case 'openServiceAutoscaling':
-                                            url = `https://app.zerops.io/service-stack/${settings.serviceId}/autoscaling`;
-                                            break;
-                                        case 'openServiceUserData':
-                                            url = `https://app.zerops.io/service-stack/${settings.serviceId}/user-data`;
-                                            break;
-                                        case 'openServiceLog':
-                                            url = `https://app.zerops.io/service-stack/${settings.serviceId}/log`;
-                                            break;
-                                        case 'openServiceTerminal':
-                                            url = `https://app.zerops.io/service-stack/${settings.serviceId}/terminal`;
-                                            break;
-                                        case 'openServiceFileBrowser':
-                                            url = `https://app.zerops.io/service-stack/${settings.serviceId}/file-browser`;
-                                            break;
-                                    }
-                                    
-                                    if (url) {
-                                        vscode.env.openExternal(vscode.Uri.parse(url));
-                                    }
-                                }
-                            }
-                        } else {
-                            vscode.window.showWarningMessage('No Service ID found. Please set a Service ID first.');
-                        }
+                        await handleExploreService(settings);
                     } else {
                         vscode.commands.executeCommand(guiSelected.action);
                     }
@@ -1050,9 +894,243 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         });
 
+        let exploreGuiCommand = vscode.commands.registerCommand('zerops.exploreGui', async () => {
+            try {
+                // Trigger background fetch of projects for later use
+                CliService.listProjects(false).catch(error => {
+                    console.error('Background project fetch failed:', error);
+                });
+                
+                const settings = await CliService.loadProjectSettings();
+                const hasServiceId = settings && settings.serviceId;
+                const hasProjectId = settings && settings.projectId;
+                
+                const guiOptions = [
+                    { label: '$(browser) Open GUI', action: 'zerops.openDashboard', description: 'Opens on Web' },
+                    { label: '$(project) Explore Projects', action: 'exploreProjects', description: 'List all projects' },
+                ];
+                
+                if (hasProjectId) {
+                    guiOptions.push({ 
+                        label: '$(project) Open Project', 
+                        action: 'zerops.openProjectDashboard', 
+                        description: `Opens on Web` 
+                    });
+                }
+                
+                if (hasServiceId) {
+                    guiOptions.push({ 
+                        label: '$(server) Explore Service', 
+                        action: 'exploreService', 
+                        description: `Explore service options` 
+                    });
+                }
+                
+                const guiSelected = await vscode.window.showQuickPick(guiOptions, {
+                    placeHolder: 'Select GUI to open'
+                });
+                
+                if (!guiSelected) {
+                    return;
+                }
+                
+                if (guiSelected.action === 'exploreProjects') {
+                    try {
+                        // First, get projects from cache
+                        let projects = await CliService.listProjects(true);
+                        let projectsShown = false;
+                        
+                        // If we have cached projects, show them immediately
+                        if (projects.length > 0) {
+                            projectsShown = true;
+                            
+                            // Display cached projects to the user
+                            const projectOptions = projects.map(project => ({
+                                label: `$(project) ${project.name}`,
+                                description: project.id,
+                                action: 'openProject',
+                                projectId: project.id
+                            }));
+                            
+                            projectOptions.push({ 
+                                label: '$(arrow-left) Go Back', 
+                                action: 'goBack', 
+                                description: 'Return to GUI menu',
+                                projectId: ''
+                            });
+                            
+                            // Start fetching fresh data in background
+                            const refreshingMessage = vscode.window.setStatusBarMessage("$(sync~spin) Refreshing projects...");
+                            // Start the fetch but don't await it
+                            CliService.listProjects(false)
+                                .catch(error => {
+                                    console.error('Failed to refresh projects list:', error);
+                                })
+                                .finally(() => {
+                                    refreshingMessage.dispose();
+                                });
+                            
+                            const projectSelected = await vscode.window.showQuickPick(projectOptions, {
+                                placeHolder: 'Select a project to open'
+                            });
+                            
+                            if (!projectSelected) {
+                                return;
+                            }
+                            
+                            if (projectSelected.action === 'goBack') {
+                                // Go back to the GUI menu
+                                vscode.commands.executeCommand('zerops.exploreGui');
+                            } else if (projectSelected.action === 'openProject' && projectSelected.projectId) {
+                                vscode.env.openExternal(vscode.Uri.parse(`https://app.zerops.io/project/${projectSelected.projectId}/service-stacks`));
+                            }
+                        }
+                        
+                        // If no cached projects, show loading and fetch
+                        if (!projectsShown) {
+                            const loadingMessage = vscode.window.setStatusBarMessage("$(sync~spin) Loading projects...");
+                            projects = await CliService.listProjects(false);
+                            loadingMessage.dispose();
+                            
+                            if (projects.length === 0) {
+                                vscode.window.showInformationMessage('No projects found.');
+                                return;
+                            }
+                            
+                            const projectOptions = projects.map(project => ({
+                                label: `$(project) ${project.name}`,
+                                description: project.id,
+                                action: 'openProject',
+                                projectId: project.id
+                            }));
+                            
+                            projectOptions.push({ 
+                                label: '$(arrow-left) Go Back', 
+                                action: 'goBack', 
+                                description: 'Return to GUI menu',
+                                projectId: ''
+                            });
+                            
+                            const projectSelected = await vscode.window.showQuickPick(projectOptions, {
+                                placeHolder: 'Select a project to open'
+                            });
+                            
+                            if (!projectSelected) {
+                                return;
+                            }
+                            
+                            if (projectSelected.action === 'goBack') {
+                                // Go back to the GUI menu
+                                vscode.commands.executeCommand('zerops.exploreGui');
+                            } else if (projectSelected.action === 'openProject' && projectSelected.projectId) {
+                                vscode.env.openExternal(vscode.Uri.parse(`https://app.zerops.io/project/${projectSelected.projectId}/service-stacks`));
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Failed to list projects:', error);
+                        vscode.window.showErrorMessage('Failed to list projects. Make sure you are logged in.');
+                    }
+                } else if (guiSelected.action === 'exploreService') {
+                    if (settings.serviceId) {
+                        const serviceOptions = [
+                            { label: '$(open-editors-view-icon) Open Service', action: 'zerops.openServiceDashboard', description: 'Opens on Web' },
+                            { label: '$(compare-changes) Pipelines & CI/CD', action: 'openServiceDeploy', description: 'Opens on Web' },
+                            { label: '$(globe) Subdomain, Domain & IP access', action: 'openServiceRouting', description: 'Opens on Web' },
+                            { label: '$(database) Automatic Scaling', action: 'openServiceAutoscaling', description: 'Opens on Web' },
+                            { label: '$(settings-gear) Environment Variables', action: 'openServiceUserData', description: 'Opens on Web' },
+                            { label: '$(debug) Runtime Log', action: 'openServiceLog', description: 'Opens on Web' },
+                            { label: '$(terminal) Remote Web Terminal', action: 'openServiceTerminal', description: 'Opens on Web' },
+                            { label: '$(file-directory) File Browser', action: 'openServiceFileBrowser', description: 'Opens on Web' },
+                            { label: '$(arrow-left) Go Back', action: 'backToGuiMenu', description: 'Return to previous menu' }
+                        ];
+                        
+                        const serviceSelected = await vscode.window.showQuickPick(serviceOptions, {
+                            placeHolder: 'Select Service option'
+                        });
+                        
+                        if (!serviceSelected) {
+                            return;
+                        }
+                        
+                        if (serviceSelected.action === 'backToGuiMenu') {
+                            // Go back to GUI menu
+                            vscode.commands.executeCommand('zerops.exploreGui');
+                        } else if (serviceSelected.action === 'zerops.openServiceDashboard') {
+                            vscode.commands.executeCommand(serviceSelected.action);
+                        } else {
+                            let url = '';
+                            switch (serviceSelected.action) {
+                                case 'openServiceDeploy':
+                                    url = `https://app.zerops.io/service-stack/${settings.serviceId}/deploy`;
+                                    break;
+                                case 'openServiceRouting':
+                                    url = `https://app.zerops.io/service-stack/${settings.serviceId}/routing`;
+                                    break;
+                                case 'openServiceAutoscaling':
+                                    url = `https://app.zerops.io/service-stack/${settings.serviceId}/autoscaling`;
+                                    break;
+                                case 'openServiceUserData':
+                                    url = `https://app.zerops.io/service-stack/${settings.serviceId}/user-data`;
+                                    break;
+                                case 'openServiceLog':
+                                    url = `https://app.zerops.io/service-stack/${settings.serviceId}/log`;
+                                    break;
+                                case 'openServiceTerminal':
+                                    url = `https://app.zerops.io/service-stack/${settings.serviceId}/terminal`;
+                                    break;
+                                case 'openServiceFileBrowser':
+                                    url = `https://app.zerops.io/service-stack/${settings.serviceId}/file-browser`;
+                                    break;
+                            }
+                            
+                            if (url) {
+                                vscode.env.openExternal(vscode.Uri.parse(url));
+                            }
+                        }
+                    } else {
+                        vscode.window.showWarningMessage('No Service ID found. Please set a Service ID first.');
+                    }
+                } else {
+                    vscode.commands.executeCommand(guiSelected.action);
+                }
+            } catch (error) {
+                console.error('Failed to open GUI menu:', error);
+                vscode.window.showErrorMessage('Failed to open GUI menu');
+            }
+        });
+
+        // Add correct login and logout commands
+        const loginCommand = vscode.commands.registerCommand('zerops.login', async () => {
+            try {
+                const token = await vscode.window.showInputBox({
+                    prompt: 'Enter your Zerops Personal Access Token',
+                    placeHolder: 'Your token from Zerops Access Token Management',
+                    password: true,
+                    ignoreFocusOut: true,
+                    validateInput: (value: string) => {
+                        return value && value.length > 0 ? null : 'Token is required';
+                    }
+                });
+
+                if (token) {
+                    await CliService.login(token, context);
+                }
+            } catch (error) {
+                console.error('Login failed:', error);
+                vscode.window.showErrorMessage('Failed to login to Zerops');
+            }
+        });
+
+        const logoutCommand = vscode.commands.registerCommand('zerops.logout', async () => {
+            try {
+                await CliService.logout(context);
+            } catch (error) {
+                console.error('Logout failed:', error);
+                vscode.window.showErrorMessage('Failed to logout from Zerops');
+            }
+        });
+
         context.subscriptions.push(
-            loginCommand,
-            logoutCommand,
             vpnUpCommand,
             vpnDownCommand,
             pushFromStatusBarCommand,
@@ -1062,7 +1140,10 @@ export async function activate(context: vscode.ExtensionContext) {
             exploreGuiFromStatusBarCommand,
             openDashboardCommand,
             openProjectDashboardCommand,
-            openServiceDashboardCommand
+            openServiceDashboardCommand,
+            exploreGuiCommand,
+            loginCommand,
+            logoutCommand
         );
 
         console.log('Zerops extension activated successfully');
@@ -1093,5 +1174,166 @@ export function deactivate() {
     }
     if (vpnDownStatusBarItem) {
         vpnDownStatusBarItem.dispose();
+    }
+}
+
+async function handleExploreProjects() {
+    try {
+        // First, get projects from cache
+        let projects = await CliService.listProjects(true);
+        let projectsShown = false;
+        
+        // If we have cached projects, show them immediately
+        if (projects.length > 0) {
+            projectsShown = true;
+            
+            // Display cached projects to the user
+            const projectOptions = projects.map(project => ({
+                label: `$(project) ${project.name}`,
+                description: project.id,
+                action: 'openProject',
+                projectId: project.id
+            }));
+            
+            projectOptions.push({ 
+                label: '$(arrow-left) Go Back', 
+                action: 'goBack', 
+                description: 'Return to GUI menu',
+                projectId: ''
+            });
+            
+            // Start fetching fresh data in background
+            const refreshingMessage = vscode.window.setStatusBarMessage("$(sync~spin) Refreshing projects...");
+            // Start the fetch but don't await it
+            CliService.listProjects(false)
+                .catch(error => {
+                    console.error('Failed to refresh projects list:', error);
+                })
+                .finally(() => {
+                    refreshingMessage.dispose();
+                });
+            
+            const projectSelected = await vscode.window.showQuickPick(projectOptions, {
+                placeHolder: 'Select a project to open'
+            });
+            
+            if (!projectSelected) {
+                return;
+            }
+            
+            if (projectSelected.action === 'goBack') {
+                // Go back to the GUI menu
+                vscode.commands.executeCommand('zerops.exploreGuiFromStatusBar');
+            } else if (projectSelected.action === 'openProject' && projectSelected.projectId) {
+                vscode.env.openExternal(vscode.Uri.parse(`https://app.zerops.io/project/${projectSelected.projectId}/service-stacks`));
+            }
+        }
+        
+        // If no cached projects, show loading and fetch
+        if (!projectsShown) {
+            const loadingMessage = vscode.window.setStatusBarMessage("$(sync~spin) Loading projects...");
+            projects = await CliService.listProjects(false);
+            loadingMessage.dispose();
+            
+            if (projects.length === 0) {
+                vscode.window.showInformationMessage('No projects found.');
+                return;
+            }
+            
+            const projectOptions = projects.map(project => ({
+                label: `$(project) ${project.name}`,
+                description: project.id,
+                action: 'openProject',
+                projectId: project.id
+            }));
+            
+            projectOptions.push({ 
+                label: '$(arrow-left) Go Back', 
+                action: 'goBack', 
+                description: 'Return to GUI menu',
+                projectId: ''
+            });
+            
+            const projectSelected = await vscode.window.showQuickPick(projectOptions, {
+                placeHolder: 'Select a project to open'
+            });
+            
+            if (!projectSelected) {
+                return;
+            }
+            
+            if (projectSelected.action === 'goBack') {
+                // Go back to the GUI menu
+                vscode.commands.executeCommand('zerops.exploreGuiFromStatusBar');
+            } else if (projectSelected.action === 'openProject' && projectSelected.projectId) {
+                vscode.env.openExternal(vscode.Uri.parse(`https://app.zerops.io/project/${projectSelected.projectId}/service-stacks`));
+            }
+        }
+    } catch (error) {
+        console.error('Failed to list projects:', error);
+        vscode.window.showErrorMessage('Failed to list projects. Make sure you are logged in.');
+    }
+}
+
+async function handleExploreService(settings: any) {
+    if (!settings || !settings.serviceId) {
+        vscode.window.showWarningMessage('No Service ID found. Please set a Service ID first.');
+        return;
+    }
+    
+    const serviceOptions = [
+        { label: '$(open-editors-view-icon) Open Service', action: 'zerops.openServiceDashboard', description: 'Opens on Web' },
+        { label: '$(compare-changes) Pipelines & CI/CD', action: 'openServiceDeploy', description: 'Opens on Web' },
+        { label: '$(globe) Subdomain, Domain & IP access', action: 'openServiceRouting', description: 'Opens on Web' },
+        { label: '$(database) Automatic Scaling', action: 'openServiceAutoscaling', description: 'Opens on Web' },
+        { label: '$(settings-gear) Environment Variables', action: 'openServiceUserData', description: 'Opens on Web' },
+        { label: '$(debug) Runtime Log', action: 'openServiceLog', description: 'Opens on Web' },
+        { label: '$(terminal) Remote Web Terminal', action: 'openServiceTerminal', description: 'Opens on Web' },
+        { label: '$(file-directory) File Browser', action: 'openServiceFileBrowser', description: 'Opens on Web' },
+        { label: '$(arrow-left) Go Back', action: 'backToGuiMenu', description: 'Return to previous menu' }
+    ];
+    
+    const serviceSelected = await vscode.window.showQuickPick(serviceOptions, {
+        placeHolder: 'Select Service option'
+    });
+    
+    if (!serviceSelected) {
+        return;
+    }
+    
+    if (serviceSelected.action === 'backToGuiMenu') {
+        // Go back to GUI menu
+        vscode.commands.executeCommand('zerops.exploreGuiFromStatusBar');
+    } else if (serviceSelected.action === 'zerops.openServiceDashboard') {
+        vscode.commands.executeCommand(serviceSelected.action);
+    } else {
+        let url = '';
+        switch (serviceSelected.action) {
+            case 'openServiceDeploy':
+                url = `https://app.zerops.io/service-stack/${settings.serviceId}/deploy`;
+                break;
+            case 'openServiceRouting':
+                url = `https://app.zerops.io/service-stack/${settings.serviceId}/routing`;
+                break;
+            case 'openServiceAutoscaling':
+                url = `https://app.zerops.io/service-stack/${settings.serviceId}/autoscaling`;
+                break;
+            case 'openServiceUserData':
+                url = `https://app.zerops.io/service-stack/${settings.serviceId}/user-data`;
+                break;
+            case 'openServiceLog':
+                url = `https://app.zerops.io/service-stack/${settings.serviceId}/log`;
+                break;
+            case 'openServiceTerminal':
+                url = `https://app.zerops.io/service-stack/${settings.serviceId}/terminal`;
+                break;
+            case 'openServiceFileBrowser':
+                url = `https://app.zerops.io/service-stack/${settings.serviceId}/file-browser`;
+                break;
+        }
+        
+        if (url) {
+            vscode.env.openExternal(vscode.Uri.parse(url));
+        }
     }
 } 
