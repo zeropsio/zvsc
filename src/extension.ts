@@ -171,6 +171,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
                         commands.push({ label: '$(file-add) Init Configurations', action: 'initConfigurations', keepOpen: true });
 
+                        commands.push({ label: '$(search) Scan Project for Framework', action: 'zerops.scanProject', keepOpen: false });
+
                         commands.push({ label: '$(gear) Settings', action: 'settings', keepOpen: true });
                         
                         if (!CliService.getLoginStatus()) {
@@ -329,6 +331,7 @@ export async function activate(context: vscode.ExtensionContext) {
                                 const configOptions = [
                                     { label: '$(file-code) Init zerops.yml', action: 'initZYml', description: 'Initializes a zerops.yml file in root' },
                                     { label: '$(file-code) Init zerops-project-import.yml', action: 'initZYmlImport', description: 'Initializes a zerops-project-import.yml file in root' },
+                                    { label: '$(search) Auto-detect Framework', action: 'detectFramework', description: 'Scan project and generate zerops.yml' },
                                     { label: '$(arrow-left) Go Back', action: 'goBack', description: 'Return to main menu' }
                                 ];
                                 
@@ -340,6 +343,10 @@ export async function activate(context: vscode.ExtensionContext) {
                                 if (configSelected) {
                                     if (configSelected.action === 'goBack') {
                                         keepMenuOpen = true;
+                                    } else if (configSelected.action === 'detectFramework') {
+                                        const { ProjectScanner } = require('./lib/scanner');
+                                        await ProjectScanner.scanAndGenerate();
+                                        keepMenuOpen = false;
                                     } else if (configSelected.action === 'initZYml') {
                                         const workspaceFolders = vscode.workspace.workspaceFolders;
                                         if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -1130,6 +1137,11 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         });
 
+        let scanProjectCommand = vscode.commands.registerCommand('zerops.scanProject', async () => {
+            const { ProjectScanner } = require('./lib/scanner');
+            await ProjectScanner.scanAndGenerate();
+        });
+
         context.subscriptions.push(
             vpnUpCommand,
             vpnDownCommand,
@@ -1143,7 +1155,8 @@ export async function activate(context: vscode.ExtensionContext) {
             openServiceDashboardCommand,
             exploreGuiCommand,
             loginCommand,
-            logoutCommand
+            logoutCommand,
+            scanProjectCommand
         );
 
         console.log('Zerops extension activated successfully');
