@@ -1,5 +1,5 @@
-import { FrameworkPattern } from '../framework-types';
-import { getDependencies } from '../fs-utils';
+import { FrameworkPattern, FrameworkMetadata } from '../../framework-types';
+import { getDependencies } from '../../fs-utils';
 
 export const reactPattern: FrameworkPattern = {
     requiredFiles: ['package.json'],
@@ -16,7 +16,7 @@ export const reactPattern: FrameworkPattern = {
     requiredDirs: ['src']
 };
 
-export const reactMetadata = {
+export const reactMetadata: FrameworkMetadata = {
     name: 'React',
     type: 'static',
     description: 'JavaScript library for building user interfaces'
@@ -59,6 +59,6 @@ export const reactYml = `zerops:
       ports:
         - port: 3000
           httpSupport: true
-      start: npm start for dummy reasons only`;
+      start: npm start`;
 
 export const reactViteYml = reactYml; 

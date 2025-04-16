@@ -2,14 +2,14 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { frameworkPatterns, frameworkMetadata, frameworkDetectors, getYamlForFramework } from './zerops-yml/index';
-import { SupportedFramework, FrameworkPattern, FrameworkMetadata } from './framework-types';
+import { SupportedFramework, FrameworkPattern, FrameworkMetadata, FrameworkDetectionResult } from './framework-types';
 
 // Define framework detector interface
-interface FrameworkDetectionResult {
-    detected: boolean;
-    certainty: number;
-    detectedItems: string[];
-}
+// interface FrameworkDetectionResult {
+//     detected: boolean;
+//     certainty: number;
+//     detectedItems: string[];
+// }
 
 export interface ScanResult {
     framework: SupportedFramework;
@@ -145,11 +145,13 @@ export class Scanner {
         }
         
         // Run custom framework detector if available
-        if (frameworkDetectors[framework]) {
+        if (framework in frameworkDetectors && frameworkDetectors[framework as keyof typeof frameworkDetectors]) {
             try {
-                const detector = frameworkDetectors[framework] as any;
-                if (typeof detector === 'function') {
-                    const customDetectionResult = await detector(directoryPath);
+                const detector = frameworkDetectors[framework as keyof typeof frameworkDetectors];
+                // Use type assertion since we can't know exact structure at compile time
+                const detectorObj = detector as any;
+                if (typeof detectorObj === 'function') {
+                    const customDetectionResult = await detectorObj(directoryPath);
                     if (customDetectionResult.detected) {
                         certainty = Math.max(certainty, customDetectionResult.certainty);
                         detectedItems.push(...customDetectionResult.detectedItems);
@@ -164,7 +166,7 @@ export class Scanner {
             framework,
             certainty: Math.min(certainty, 100),
             detectedItems,
-            metadata: frameworkMetadata[framework] as FrameworkMetadata
+            metadata: frameworkMetadata[framework as keyof typeof frameworkMetadata] as FrameworkMetadata
         };
     }
     
@@ -172,7 +174,16 @@ export class Scanner {
      * Checks if a framework is in our supported list
      */
     private static isSupportedFramework(framework: string): framework is SupportedFramework {
-        return ['nextjs', 'astro', 'react', 'vue', 'nodejs'].includes(framework);
+        return [
+            // JavaScript ecosystem
+            'nextjs', 'astro', 'react', 'vue', 'nodejs', 'javascript', 'deno', 'nestjs',
+            // GoLang ecosystem
+            'golang', 'gin', 'echo', 'fiber',
+            // Python ecosystem
+            'python', 'django', 'flask', 'fastapi',
+            // Java ecosystem
+            'java', 'spring', 'springboot', 'quarkus', 'micronaut'
+        ].includes(framework);
     }
     
     /**
@@ -208,13 +219,16 @@ export class Scanner {
         
         // Check if the framework is a supported one
         if (Scanner.isSupportedFramework(framework)) {
-            const metadata = frameworkMetadata[framework as SupportedFramework];
-            if (metadata) {
-                return {
-                    name: metadata.name,
-                    type: metadata.type,
-                    description: metadata.description
-                };
+            const supportedFramework = framework as SupportedFramework;
+            if (supportedFramework in frameworkMetadata) {
+                const metadata = frameworkMetadata[supportedFramework as keyof typeof frameworkMetadata];
+                if (metadata) {
+                    return {
+                        name: metadata.name,
+                        type: metadata.type,
+                        description: metadata.description
+                    };
+                }
             }
         }
         
@@ -230,34 +244,74 @@ export class Scanner {
                 return '';
             }
             
-            switch (framework) {
+            const supportedFramework = framework as SupportedFramework;
+            
+            switch (supportedFramework) {
                 case 'nextjs': {
-                    const isStatic = frameworkDetectors.nextjs.isStatic(directoryPath);
-                    return `Detected as ${isStatic ? 'static' : 'server-rendered'} Next.js application`;
+                    if ('nextjs' in frameworkDetectors && 
+                        'isStatic' in frameworkDetectors.nextjs && 
+                        typeof frameworkDetectors.nextjs.isStatic === 'function') {
+                        const isStatic = frameworkDetectors.nextjs.isStatic(directoryPath);
+                        return `Detected as ${isStatic ? 'static' : 'server-rendered'} Next.js application`;
+                    }
+                    return 'Detected as Next.js application';
                 }
                 
                 case 'astro': {
-                    const isStatic = frameworkDetectors.astro.isStatic(directoryPath);
-                    return `Detected as ${isStatic ? 'static' : 'server-rendered'} Astro application`;
+                    if ('astro' in frameworkDetectors && 
+                        'isStatic' in frameworkDetectors.astro && 
+                        typeof frameworkDetectors.astro.isStatic === 'function') {
+                        const isStatic = frameworkDetectors.astro.isStatic(directoryPath);
+                        return `Detected as ${isStatic ? 'static' : 'server-rendered'} Astro application`;
+                    }
+                    return 'Detected as Astro application';
                 }
                 
                 case 'react': {
-                    const buildTool = frameworkDetectors.react.detectBuildTool(directoryPath);
-                    return `Detected as React application using ${buildTool === 'cra' ? 'Create React App' : buildTool === 'vite' ? 'Vite' : 'unknown build tool'}`;
+                    if ('react' in frameworkDetectors && 
+                        'detectBuildTool' in frameworkDetectors.react &&
+                        typeof frameworkDetectors.react.detectBuildTool === 'function') {
+                        const buildTool = frameworkDetectors.react.detectBuildTool(directoryPath);
+                        return `Detected as React application using ${buildTool === 'cra' ? 'Create React App' : buildTool === 'vite' ? 'Vite' : 'unknown build tool'}`;
+                    }
+                    return 'Detected as React application';
                 }
                 
                 case 'vue': {
-                    const { version, buildTool } = frameworkDetectors.vue.detectConfiguration(directoryPath);
-                    return `Detected as Vue.js ${version} application using ${buildTool === 'cli' ? 'Vue CLI' : buildTool === 'vite' ? 'Vite' : buildTool}`;
+                    if ('vue' in frameworkDetectors && 
+                        'detectConfiguration' in frameworkDetectors.vue &&
+                        typeof frameworkDetectors.vue.detectConfiguration === 'function') {
+                        const { version, buildTool } = frameworkDetectors.vue.detectConfiguration(directoryPath);
+                        return `Detected as Vue.js ${version} application using ${buildTool === 'cli' ? 'Vue CLI' : buildTool === 'vite' ? 'Vite' : buildTool}`;
+                    }
+                    return 'Detected as Vue.js application';
                 }
                 
                 case 'nodejs': {
-                    const nodeType = frameworkDetectors.nodejs.detectType(directoryPath);
-                    let description = 'Detected as Node.js application';
-                    if (nodeType.hasNestjs) description += ' using NestJS';
-                    else if (nodeType.hasExpress) description += ' using Express';
-                    if (nodeType.hasTypeScript) description += ' with TypeScript';
-                    return description;
+                    if ('nodejs' in frameworkDetectors && 
+                        'detectType' in frameworkDetectors.nodejs &&
+                        typeof frameworkDetectors.nodejs.detectType === 'function') {
+                        const nodeType = frameworkDetectors.nodejs.detectType(directoryPath);
+                        let description = 'Detected as Node.js application';
+                        if (nodeType.hasExpress) description += ' using Express';
+                        else if (nodeType.hasKoa) description += ' using Koa';
+                        if (nodeType.hasTypeScript) description += ' with TypeScript';
+                        return description;
+                    }
+                    return 'Detected as Node.js application';
+                }
+                
+                case 'nestjs': {
+                    if ('nestjs' in frameworkDetectors && 
+                        'detectConfig' in frameworkDetectors.nestjs &&
+                        typeof frameworkDetectors.nestjs.detectConfig === 'function') {
+                        const nestConfig = frameworkDetectors.nestjs.detectConfig(directoryPath);
+                        let description = 'Detected as NestJS application';
+                        if (nestConfig.hasGraphQL) description += ' with GraphQL';
+                        if (nestConfig.hasMicroservices) description += ' with Microservices';
+                        return description;
+                    }
+                    return 'Detected as NestJS application';
                 }
                 
                 default:

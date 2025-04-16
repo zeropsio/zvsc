@@ -1,5 +1,5 @@
-import { FrameworkPattern } from '../framework-types';
-import { getDependencies } from '../fs-utils';
+import { FrameworkPattern, FrameworkMetadata } from '../../framework-types';
+import { getDependencies } from '../../fs-utils';
 
 export const vuePattern: FrameworkPattern = {
     requiredFiles: ['package.json'],
@@ -14,7 +14,7 @@ export const vuePattern: FrameworkPattern = {
     }
 };
 
-export const vueMetadata = {
+export const vueMetadata: FrameworkMetadata = {
     name: 'Vue.js',
     type: 'static',
     description: 'Progressive JavaScript framework for building UIs'
@@ -63,6 +63,6 @@ export const vueCliYml = `zerops:
       ports:
         - port: 3000
           httpSupport: true
-      start: npm start for dummy reasons only`;
+      start: npm start`;
 
 export const vueViteYml = vueCliYml; 

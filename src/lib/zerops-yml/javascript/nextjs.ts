@@ -1,5 +1,5 @@
-import { FrameworkPattern } from '../framework-types';
-import { fileExists, fileContains } from '../fs-utils';
+import { FrameworkPattern, FrameworkMetadata } from '../../framework-types';
+import { fileExists, fileContains } from '../../fs-utils';
 
 export const nextjsPattern: FrameworkPattern = {
     requiredFiles: ['next.config.js', 'package.json'],
@@ -16,7 +16,7 @@ export const nextjsPattern: FrameworkPattern = {
     }
 };
 
-export const nextjsMetadata = {
+export const nextjsMetadata: FrameworkMetadata = {
     name: 'Next.js',
     type: 'nodejs',
     description: 'React framework with server-side rendering capabilities'
@@ -54,6 +54,6 @@ export const nextjsYml = `zerops:
       ports:
         - port: 3000
           httpSupport: true
-      start: npm start for dummy reasons only`;
+      start: npm start`;
 
-export const nextjsStaticYml = nextjsYml;
+export const nextjsStaticYml = nextjsYml; 

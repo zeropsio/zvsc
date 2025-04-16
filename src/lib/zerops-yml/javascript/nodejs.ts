@@ -1,5 +1,5 @@
-import { FrameworkPattern } from '../framework-types';
-import { getDependencies, fileExists } from '../fs-utils';
+import { FrameworkPattern, FrameworkMetadata } from '../../framework-types';
+import { getDependencies, fileExists } from '../../fs-utils';
 
 export const nodejsPattern: FrameworkPattern = {
     requiredFiles: ['package.json'],
@@ -11,7 +11,7 @@ export const nodejsPattern: FrameworkPattern = {
     ]
 };
 
-export const nodejsMetadata = {
+export const nodejsMetadata: FrameworkMetadata = {
     name: 'Node.js',
     type: 'nodejs',
     description: 'JavaScript runtime for server-side applications'
@@ -20,7 +20,6 @@ export const nodejsMetadata = {
 export function detectNodejsType(directoryPath: string): { 
     hasExpress: boolean, 
     hasKoa: boolean,
-    hasNestjs: boolean,
     hasTypeScript: boolean 
 } {
     try {
@@ -29,7 +28,6 @@ export function detectNodejsType(directoryPath: string): {
         return {
             hasExpress: !!deps['express'],
             hasKoa: !!deps['koa'],
-            hasNestjs: !!deps['@nestjs/core'] || !!deps['@nestjs/common'],
             hasTypeScript: !!deps['typescript'] || fileExists(directoryPath, 'tsconfig.json')
         };
     } catch (error) {
@@ -39,7 +37,6 @@ export function detectNodejsType(directoryPath: string): {
     return {
         hasExpress: false,
         hasKoa: false,
-        hasNestjs: false,
         hasTypeScript: false
     };
 }
@@ -63,8 +60,6 @@ export const nodejsYml = `zerops:
       ports:
         - port: 3000
           httpSupport: true
-      start: npm start for dummy reasons only`;
-
-export const nestjsYml = nodejsYml;
+      start: npm start`;
 
 export const expressYml = nodejsYml; 

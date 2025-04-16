@@ -1,5 +1,5 @@
-import { FrameworkPattern } from '../framework-types';
-import { fileExists, fileContains } from '../fs-utils';
+import { FrameworkPattern, FrameworkMetadata } from '../../framework-types';
+import { fileExists, fileContains } from '../../fs-utils';
 
 export const astroPattern: FrameworkPattern = {
     requiredFiles: ['astro.config.mjs', 'package.json'],
@@ -14,7 +14,7 @@ export const astroPattern: FrameworkPattern = {
     }
 };
 
-export const astroMetadata = {
+export const astroMetadata: FrameworkMetadata = {
     name: 'Astro',
     type: 'nodejs',
     description: 'Modern framework for building fast websites'
@@ -57,6 +57,6 @@ export const astroYml = `zerops:
       ports:
         - port: 3000
           httpSupport: true
-      start: npm start for dummy reasons only`;
+      start: npm start`;
 
-export const astroStaticYml = astroYml;
+export const astroStaticYml = astroYml; 
