@@ -174,7 +174,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
                         commands.push({ label: '$(search) Scan Project for Framework', action: 'zerops.scanProject', keepOpen: false });
 
-                        commands.push({ label: '$(comment-discussion) Join Discord Community', action: 'openDiscord', keepOpen: false });
+                        commands.push({ label: '$(comment-discussion) Support', action: 'support', keepOpen: true });
 
                         commands.push({ label: '$(gear) Settings', action: 'settings', keepOpen: true });
                         
@@ -440,7 +440,55 @@ export async function activate(context: vscode.ExtensionContext) {
                                 keepMenuOpen = true;
                             }
                         }
-                        else if (selected.action === 'openDocs') {
+                        else if (selected.action === 'support') {
+                            const supportOptions = [
+                                { label: '$(comment-discussion) Discord Community', action: 'openDiscord', description: 'Join our Discord server' },
+                                { label: '$(mail) Email Support', action: 'openEmailSupport', description: 'Contact support@zerops.io' },
+                                { label: '$(globe) Forum', action: 'openForumSupport', description: 'Visit support.zerops.io forum' },
+                                { label: '$(arrow-left) Go Back', action: 'goBack', description: 'Return to main menu' }
+                            ];
+                            
+                            const supportSelected = await vscode.window.showQuickPick(supportOptions, {
+                                placeHolder: 'Select support option',
+                                ignoreFocusOut: true
+                            });
+                            
+                            if (supportSelected) {
+                                if (supportSelected.action === 'goBack') {
+                                    keepMenuOpen = true;
+                                } else if (supportSelected.action === 'openDiscord') {
+                                    await openDiscordServer();
+                                    keepMenuOpen = true;
+                                } else if (supportSelected.action === 'openEmailSupport') {
+                                    const emailAddress = 'support@zerops.io';
+                                    const emailOptions = [
+                                        { label: '$(mail) Open Mail', action: 'openMail', description: 'Open in default mail client' },
+                                        { label: '$(clippy) Copy Email', action: 'copyEmail', description: 'Copy to clipboard' },
+                                        { label: '$(arrow-left) Cancel', action: 'cancel', description: 'Go back' }
+                                    ];
+                                    
+                                    const emailAction = await vscode.window.showQuickPick(emailOptions, {
+                                        placeHolder: 'Choose action for ' + emailAddress,
+                                        ignoreFocusOut: true
+                                    });
+                                    
+                                    if (emailAction) {
+                                        if (emailAction.action === 'openMail') {
+                                            vscode.env.openExternal(vscode.Uri.parse('mailto:' + emailAddress));
+                                        } else if (emailAction.action === 'copyEmail') {
+                                            vscode.env.clipboard.writeText(emailAddress);
+                                            vscode.window.showInformationMessage('Email address copied to clipboard');
+                                        }
+                                    }
+                                    keepMenuOpen = true;
+                                } else if (supportSelected.action === 'openForumSupport') {
+                                    vscode.env.openExternal(vscode.Uri.parse('https://support.zerops.io'));
+                                    keepMenuOpen = true;
+                                }
+                            } else {
+                                keepMenuOpen = true;
+                            }
+                        } else if (selected.action === 'openDocs') {
                             const panel = vscode.window.createWebviewPanel(
                                 'zeropsDocs',
                                 'Zerops Documentation',
@@ -478,9 +526,6 @@ export async function activate(context: vscode.ExtensionContext) {
                                 </html>
                             `;
                             
-                            keepMenuOpen = false;
-                        } else if (selected.action === 'openDiscord') {
-                            await openDiscordServer();
                             keepMenuOpen = false;
                         } else if (selected.action === 'zerops.openDashboard') {
                             vscode.env.openExternal(vscode.Uri.parse('https://app.zerops.io/dashboard/projects'));
@@ -1212,33 +1257,12 @@ async function handleExploreService(settings: any) {
 }
 
 async function openDiscordServer() {
-    const serverId = '735781031147208777';
-    const discordLink = `https://discord.com/channels/${serverId}`;
     const discordInviteLink = 'https://discord.gg/3yZknaRhxK';
     
     try {
-        const directDiscordUrl = `discord://discord.com/channels/${serverId}`;
-        
-        if (process.platform === 'darwin') {
-            const { exec } = require('child_process');
-            
-            exec(`open "${directDiscordUrl}"`, (error: any) => {
-                if (error) {
-                    vscode.env.openExternal(vscode.Uri.parse(directDiscordUrl));
-                }
-            });
-        } else if (process.platform === 'win32') {
-            const { exec } = require('child_process');
-            exec(`start "" "${directDiscordUrl}"`, (error: any) => {
-                if (error) {
-                    vscode.env.openExternal(vscode.Uri.parse(directDiscordUrl));
-                }
-            });
-        } else {
-            vscode.env.openExternal(vscode.Uri.parse(directDiscordUrl));
-        }
+        vscode.env.openExternal(vscode.Uri.parse(discordInviteLink));
     } catch (error) {
         console.error('Failed to open Discord server:', error);
-        vscode.env.openExternal(vscode.Uri.parse(discordLink));
+        vscode.window.showErrorMessage('Failed to open Discord server link');
     }
 } 
