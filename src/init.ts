@@ -2,6 +2,10 @@
  * Contains template configurations for Zerops projects
  */
 
+import { Scanner } from './lib/scanner';
+import * as vscode from 'vscode';
+import * as path from 'path';
+
 /**
  * Default zerops.yml configuration for deploying applications
  */
@@ -63,3 +67,38 @@ services:
   - hostname: db
     type: postgresql@16
     mode: HA`;
+
+/**
+ * Scans the project directory for frameworks and generates the appropriate configuration
+ * @param workspacePath The path to the workspace
+ * @returns A promise that resolves when the scan is complete
+ */
+export async function scanProjectForFramework(workspacePath: string): Promise<void> {
+    try {
+        const results = await Scanner.scanDirectory(workspacePath);
+        
+        if (results.length === 0) {
+            vscode.window.showInformationMessage('No supported frameworks detected in the project.');
+            return;
+        }
+        
+        // Sort results by certainty
+        results.sort((a, b) => b.certainty - a.certainty);
+        
+        // Get the most likely framework
+        const topResult = results[0];
+        
+        // Generate the zerops.yml file
+        const zeropsYmlPath = path.join(workspacePath, 'zerops.yml');
+        const success = Scanner.generateZeropsYml(topResult.framework, zeropsYmlPath, workspacePath);
+        
+        if (success) {
+            vscode.window.showInformationMessage(`Generated zerops.yml for ${topResult.metadata.name} (${topResult.certainty.toFixed(0)}% confidence)`);
+        } else {
+            vscode.window.showErrorMessage('Failed to generate zerops.yml configuration');
+        }
+    } catch (error) {
+        console.error('Error scanning project for framework:', error);
+        vscode.window.showErrorMessage('Failed to scan project for framework');
+    }
+}

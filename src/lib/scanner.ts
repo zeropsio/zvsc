@@ -386,7 +386,7 @@ export class Scanner {
         }
         
         const currentWorkspace = workspaceFolders[0].uri.fsPath;
-        const results = await Scanner.scanDirectory(currentWorkspace);
-        await Scanner.promptAndGenerateConfig(results, currentWorkspace);
+        const { scanProjectForFramework } = require('../init');
+        await scanProjectForFramework(currentWorkspace);
     }
 }

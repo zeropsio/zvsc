@@ -6,6 +6,7 @@ import { Recipe, RecipeOption, CloneOption } from './types';
 import { RECIPES } from './recipes';
 import { ZEROPS_YML, IMPORT_YML } from './init';
 import { Scanner } from './lib/scanner';
+import { CostCalculatorService } from './services/costCalculatorService';
 
 let zeropsStatusBarItem: vscode.StatusBarItem;
 let pushStatusBarItem: vscode.StatusBarItem;
@@ -13,6 +14,7 @@ let vpnUpStatusBarItem: vscode.StatusBarItem;
 let serviceStatusBarItem: vscode.StatusBarItem;
 let guiStatusBarItem: vscode.StatusBarItem;
 let vpnDownStatusBarItem: vscode.StatusBarItem;
+let terminalStatusBarItem: vscode.StatusBarItem;
 
 function updateStatusBarVisibility() {
     const activeEditor = vscode.window.activeTextEditor;
@@ -23,6 +25,7 @@ function updateStatusBarVisibility() {
         if (serviceStatusBarItem) serviceStatusBarItem.show();
         if (guiStatusBarItem) guiStatusBarItem.show();
         if (vpnDownStatusBarItem) vpnDownStatusBarItem.show();
+        if (terminalStatusBarItem) terminalStatusBarItem.show();
     } else {
     }
 }
@@ -62,6 +65,12 @@ export async function activate(context: vscode.ExtensionContext) {
         });
         
         updateStatusBarVisibility();
+        
+        terminalStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+        terminalStatusBarItem.text = "$(terminal) Terminal";
+        terminalStatusBarItem.tooltip = "Open Zerops Terminal";
+        terminalStatusBarItem.command = 'zerops.openTerminal';
+        terminalStatusBarItem.show();
         
         guiStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 1);
         guiStatusBarItem.text = "$(globe) zGUI";
@@ -160,13 +169,13 @@ export async function activate(context: vscode.ExtensionContext) {
                         
                         commands.push({ label: '$(globe) Explore GUI', action: 'zerops.exploreGui', keepOpen: true });
 
+                        commands.push({ label: '$(graph) Cost Calculator', action: 'zerops.exploreCostCalculator', keepOpen: false });
+
                         commands.push({ label: '$(book) Zerops Docs', action: 'openDocs', keepOpen: false });
                         
                         commands.push({ label: '$(repo-clone) Clone Recipe', action: 'cloneRecipe', keepOpen: true });
 
                         commands.push({ label: '$(file-add) Init Configurations', action: 'initConfigurations', keepOpen: true });
-
-                        commands.push({ label: '$(search) Scan Project for Framework', action: 'zerops.scanProject', keepOpen: false });
 
                         commands.push({ label: '$(comment-discussion) Support', action: 'support', keepOpen: true });
 
@@ -326,7 +335,7 @@ export async function activate(context: vscode.ExtensionContext) {
                                 const configOptions = [
                                     { label: '$(file-code) Init zerops.yml', action: 'initZYml', description: 'Initializes a zerops.yml file in root' },
                                     { label: '$(file-code) Init zerops-project-import.yml', action: 'initZYmlImport', description: 'Initializes a zerops-project-import.yml file in root' },
-                                    { label: '$(search) Auto-detect Framework', action: 'detectFramework', description: 'Scan project and generate zerops.yml' },
+                                    { label: '$(search) Scan Project for Framework', action: 'detectFramework', description: 'Scan project and generate zerops.yml' },
                                     { label: '$(arrow-left) Go Back', action: 'goBack', description: 'Return to main menu' }
                                 ];
                                 
@@ -346,8 +355,8 @@ export async function activate(context: vscode.ExtensionContext) {
                                         }
                                         
                                         const currentWorkspace = workspaceFolders[0].uri.fsPath;
-                                        const results = await Scanner.scanDirectory(currentWorkspace);
-                                        await Scanner.promptAndGenerateConfig(results, currentWorkspace);
+                                        const { scanProjectForFramework } = require('./init');
+                                        await scanProjectForFramework(currentWorkspace);
                                         keepMenuOpen = false;
                                     } else if (configSelected.action === 'initZYml') {
                                         const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -477,6 +486,26 @@ export async function activate(context: vscode.ExtensionContext) {
                             } else {
                                 keepMenuOpen = true;
                             }
+                        } else if (selected.action === 'settings') {
+                            const settingsOptions = [
+                                { label: '$(gear) General Settings', action: 'generalSettings', description: 'Configure general settings' },
+                                { label: '$(arrow-left) Go Back', action: 'goBack', description: 'Return to main menu' }
+                            ];
+                            
+                            const settingsSelected = await vscode.window.showQuickPick(settingsOptions, {
+                                placeHolder: 'Select settings option'
+                            });
+                            
+                            if (settingsSelected) {
+                                if (settingsSelected.action === 'goBack') {
+                                    keepMenuOpen = true;
+                                } else {
+                                    vscode.commands.executeCommand(settingsSelected.action);
+                                    keepMenuOpen = false;
+                                }
+                            } else {
+                                keepMenuOpen = true;
+                            }
                         } else if (selected.action === 'zerops.exploreGui') {
                             vscode.commands.executeCommand('zerops.exploreGui');
                             keepMenuOpen = false;
@@ -562,6 +591,7 @@ export async function activate(context: vscode.ExtensionContext) {
             vpnDownStatusBarItem.text = "$(debug-disconnect) zVpn Down";
             vpnDownStatusBarItem.tooltip = "Disconnect from Zerops VPN";
             vpnDownStatusBarItem.command = 'zerops.vpnDownFromStatusBar';
+            vpnDownStatusBarItem.show();
             
             zeropsStatusBarItem.show();
             pushStatusBarItem.show();
@@ -1028,8 +1058,58 @@ export async function activate(context: vscode.ExtensionContext) {
         });
 
         let scanProjectCommand = vscode.commands.registerCommand('zerops.scanProject', async () => {
-            const { ProjectScanner } = require('./lib/scanner');
-            await ProjectScanner.scanAndGenerate();
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (!workspaceFolders || workspaceFolders.length === 0) {
+                vscode.window.showErrorMessage('No workspace folder is open. Please open a folder first.');
+                return;
+            }
+            
+            const currentWorkspace = workspaceFolders[0].uri.fsPath;
+            const { scanProjectForFramework } = require('./init');
+            await scanProjectForFramework(currentWorkspace);
+        });
+
+        let initProjectCommand = vscode.commands.registerCommand('zerops.initProject', async () => {
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (!workspaceFolders || workspaceFolders.length === 0) {
+                vscode.window.showErrorMessage('No workspace folder is open. Please open a folder first.');
+                return;
+            }
+            
+            const currentWorkspace = workspaceFolders[0].uri.fsPath;
+            
+            // First scan for framework
+            const { scanProjectForFramework } = require('./init');
+            await scanProjectForFramework(currentWorkspace);
+            
+            // Then create import.yml if it doesn't exist
+            const importYmlPath = path.join(currentWorkspace, 'import.yml');
+            if (!fs.existsSync(importYmlPath)) {
+                const { IMPORT_YML } = require('./init');
+                fs.writeFileSync(importYmlPath, IMPORT_YML);
+                vscode.window.showInformationMessage('Created import.yml file');
+            }
+        });
+
+        const costCalculatorService = CostCalculatorService.getInstance();
+        
+        let exploreCostCalculatorCommand = vscode.commands.registerCommand('zerops.exploreCostCalculator', async () => {
+            try {
+                await costCalculatorService.startCalculator();
+            } catch (error) {
+                console.error('Failed to open Cost Calculator:', error);
+                vscode.window.showErrorMessage('Failed to open Cost Calculator');
+            }
+        });
+
+        let openTerminalCommand = vscode.commands.registerCommand('zerops.openTerminal', async () => {
+            try {
+                const terminal = vscode.window.createTerminal('Zerops Terminal');
+                terminal.show();
+            } catch (error) {
+                console.error('Failed to open terminal:', error);
+                vscode.window.showErrorMessage('Failed to open terminal');
+            }
         });
 
         context.subscriptions.push(
@@ -1046,7 +1126,11 @@ export async function activate(context: vscode.ExtensionContext) {
             exploreGuiCommand,
             loginCommand,
             logoutCommand,
-            scanProjectCommand
+            scanProjectCommand,
+            initProjectCommand,
+            exploreCostCalculatorCommand,
+            openTerminalCommand,
+            costCalculatorService
         );
 
         console.log('Zerops extension activated successfully');
@@ -1078,6 +1162,10 @@ export function deactivate() {
     if (vpnDownStatusBarItem) {
         vpnDownStatusBarItem.dispose();
     }
+    if (terminalStatusBarItem) {
+        terminalStatusBarItem.dispose();
+    }
+    CostCalculatorService.getInstance().dispose();
 }
 
 async function handleExploreProjects() {
