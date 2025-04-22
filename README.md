@@ -8,9 +8,6 @@
 
 <p align="center">
   <a href="https://marketplace.visualstudio.com/items?itemName=Zerops.zvsc">
-    <img src="https://img.shields.io/visual-studio-marketplace/v/Zerops.zvsc" alt="Visual Studio Marketplace Version">
-  </a>
-  <a href="https://marketplace.visualstudio.com/items?itemName=Zerops.zvsc">
     <img src="https://img.shields.io/visual-studio-marketplace/d/Zerops.zvsc" alt="Visual Studio Marketplace Downloads">
   </a>
 
@@ -19,9 +16,6 @@
   </a>
   <a href="https://open-vsx.org/extension/Zerops/zvsc">
     <img src="https://img.shields.io/open-vsx/dt/Zerops/zvsc/latest" alt="Open Vsx Total Downloads">
-  </a>
-  <a href="https://marketplace.visualstudio.com/items?itemName=Zerops.zvsc">
-    <img src="https://img.shields.io/visual-studio-marketplace/last-updated/Zerops.zvsc" alt="Visual Studio Marketplace Last Updated">
   </a>
 </p>
 
