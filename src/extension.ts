@@ -174,6 +174,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
                         commands.push({ label: '$(search) Scan Project for Framework', action: 'zerops.scanProject', keepOpen: false });
 
+                        commands.push({ label: '$(comment-discussion) Join Discord Community', action: 'openDiscord', keepOpen: false });
+
                         commands.push({ label: '$(gear) Settings', action: 'settings', keepOpen: true });
                         
                         if (!CliService.getLoginStatus()) {
@@ -438,174 +440,7 @@ export async function activate(context: vscode.ExtensionContext) {
                                 keepMenuOpen = true;
                             }
                         }
-                        else if (selected.action === 'settings') {
-                            const settingsOptions = [];
-                            
-                            if (hasServiceId && hasProjectId) {
-                                settingsOptions.push({ label: '$(gear) Edit Configuration', action: 'editConfiguration', description: 'Edit Service and Project IDs' });
-                            } else {
-                                if (hasServiceId) {
-                                    settingsOptions.push({ label: '$(edit) Edit Service ID', action: 'setupServiceId', description: `Current: ${settings.serviceId}` });
-                                } else {
-                                    settingsOptions.push({ label: '$(add) Add Service ID', action: 'setupServiceId', description: 'Configure Service ID' });
-                                }
-                                
-                                if (hasProjectId) {
-                                    settingsOptions.push({ label: '$(edit) Edit Project ID', action: 'setupProjectId', description: `Current: ${settings.projectId}` });
-                                } else {
-                                    settingsOptions.push({ label: '$(add) Add Project ID', action: 'setupProjectId', description: 'Configure Project ID' });
-                                }
-                            }
-                            
-                            if (CliService.getLoginStatus()) {
-                                settingsOptions.push({ label: '$(sign-out) Logout from Zerops', action: 'zerops.logout', description: 'Sign out from Zerops' });
-                            }
-                            
-                            settingsOptions.push({ label: '$(arrow-left) Go Back', action: 'goBack', description: 'Return to main menu' });
-                            
-                            const settingsSelected = await vscode.window.showQuickPick(settingsOptions, {
-                                placeHolder: 'Settings'
-                            });
-                            
-                            if (settingsSelected) {
-                                if (settingsSelected.action === 'goBack') {
-                                    keepMenuOpen = true;
-                                } else if (settingsSelected.action === 'editConfiguration') {
-                                    const configOptions = [
-                                        { label: '$(edit) Edit Service ID', action: 'setupServiceId', description: `Current: ${settings.serviceId}` },
-                                        { label: '$(edit) Edit Project ID', action: 'setupProjectId', description: `Current: ${settings.projectId}` },
-                                        { label: '$(arrow-left) Go Back', action: 'goBackToSettings', description: 'Return to Settings' }
-                                    ];
-                                    
-                                    const configSelected = await vscode.window.showQuickPick(configOptions, {
-                                        placeHolder: 'Select configuration to edit'
-                                    });
-                                    
-                                    if (configSelected) {
-                                        if (configSelected.action === 'goBackToSettings') {
-                                            continue;
-                                        } else if (configSelected.action === 'setupServiceId') {
-                                            const serviceId = await vscode.window.showInputBox({
-                                                prompt: 'Enter your Zerops Service ID',
-                                                placeHolder: 'Service ID from Zerops Dashboard',
-                                                value: settings.serviceId,
-                                                ignoreFocusOut: true,
-                                                validateInput: (value: string) => {
-                                                    return value && value.length > 0 ? null : 'Service ID is required';
-                                                }
-                                            });
-                                            
-                                            if (serviceId) {
-                                                await CliService.saveProjectSettings({ 
-                                                    serviceId,
-                                                    projectId: settings.projectId
-                                                });
-                                                vscode.window.showInformationMessage('Service ID updated successfully');
-                                            }
-                                        } else if (configSelected.action === 'setupProjectId') {
-                                            const projectId = await vscode.window.showInputBox({
-                                                prompt: 'Enter your Zerops Project ID',
-                                                placeHolder: 'Project ID from Zerops Dashboard',
-                                                value: settings.projectId,
-                                                ignoreFocusOut: true,
-                                                validateInput: (value: string) => {
-                                                    return value && value.length > 0 ? null : 'Project ID is required';
-                                                }
-                                            });
-                                            
-                                            if (projectId) {
-                                                await CliService.saveProjectSettings({ 
-                                                    serviceId: settings.serviceId,
-                                                    projectId
-                                                });
-                                                vscode.window.showInformationMessage('Project ID updated successfully');
-                                            }
-                                        }
-                                    }
-                                    
-                                    keepMenuOpen = true;
-                                } else {
-                                    vscode.commands.executeCommand(settingsSelected.action);
-                                    if (settingsSelected.action === 'zerops.logout') {
-                                        keepMenuOpen = false;
-                                    } else {
-                                        keepMenuOpen = true;
-                                    }
-                                }
-                            } else {
-                                keepMenuOpen = true;
-                            }
-                        } else if (selected.action === 'exploreGui') {
-                            try {
-                                // Trigger background fetch of projects for later use
-                                CliService.listProjects(false).catch(error => {
-                                    console.error('Background project fetch failed:', error);
-                                });
-                                
-                                const settings = await CliService.loadProjectSettings();
-                                const hasServiceId = settings && settings.serviceId;
-                                const hasProjectId = settings && settings.projectId;
-                                
-                                const guiOptions = [
-                                    { label: '$(browser) Open GUI', action: 'zerops.openDashboard', description: 'Opens on Web' },
-                                    { label: '$(project) Explore Projects', action: 'exploreProjects', description: 'List all projects' },
-                                ];
-                                
-                                if (hasProjectId) {
-                                    guiOptions.push({ 
-                                        label: '$(project) Open Project', 
-                                        action: 'zerops.openProjectDashboard', 
-                                        description: `Opens on Web` 
-                                    });
-                                }
-                                
-                                if (hasServiceId) {
-                                    guiOptions.push({ 
-                                        label: '$(server) Explore Service', 
-                                        action: 'exploreService', 
-                                        description: `Explore service options` 
-                                    });
-                                }
-                                
-                                guiOptions.push({ 
-                                    label: '$(arrow-left) Go Back', 
-                                    action: 'goBack', 
-                                    description: 'Return to main menu' 
-                                });
-                                
-                                const guiSelected = await vscode.window.showQuickPick(guiOptions, {
-                                    placeHolder: 'Select GUI to open'
-                                });
-                                
-                                if (guiSelected) {
-                                    if (guiSelected.action === 'goBack') {
-                                        return;
-                                    } else if (guiSelected.action === 'exploreProjects') {
-                                        await handleExploreProjects();
-                                    } else if (guiSelected.action === 'exploreService') {
-                                        await handleExploreService(settings);
-                                    } else {
-                                        vscode.commands.executeCommand(guiSelected.action);
-                                    }
-                                }
-                            } catch (error) {
-                                console.error('Failed to open GUI menu:', error);
-                                vscode.window.showErrorMessage('Failed to open GUI menu');
-                            }
-                        } else if (selected.action === 'zerops.openDashboard') {
-                            vscode.env.openExternal(vscode.Uri.parse('https://app.zerops.io/dashboard/projects'));
-                            keepMenuOpen = false;
-                        } else if (selected.action === 'zerops.openProjectDashboard') {
-                            if (settings.projectId) {
-                                vscode.env.openExternal(vscode.Uri.parse(`https://app.zerops.io/project/${settings.projectId}/service-stacks`));
-                            }
-                            keepMenuOpen = false;
-                        } else if (selected.action === 'zerops.openServiceDashboard') {
-                            if (settings.serviceId) {
-                                vscode.env.openExternal(vscode.Uri.parse(`https://app.zerops.io/service-stack/${settings.serviceId}/dashboard`));
-                            }
-                            keepMenuOpen = false;
-                        } else if (selected.action === 'openDocs') {
+                        else if (selected.action === 'openDocs') {
                             const panel = vscode.window.createWebviewPanel(
                                 'zeropsDocs',
                                 'Zerops Documentation',
@@ -643,6 +478,22 @@ export async function activate(context: vscode.ExtensionContext) {
                                 </html>
                             `;
                             
+                            keepMenuOpen = false;
+                        } else if (selected.action === 'openDiscord') {
+                            await openDiscordServer();
+                            keepMenuOpen = false;
+                        } else if (selected.action === 'zerops.openDashboard') {
+                            vscode.env.openExternal(vscode.Uri.parse('https://app.zerops.io/dashboard/projects'));
+                            keepMenuOpen = false;
+                        } else if (selected.action === 'zerops.openProjectDashboard') {
+                            if (settings.projectId) {
+                                vscode.env.openExternal(vscode.Uri.parse(`https://app.zerops.io/project/${settings.projectId}/service-stacks`));
+                            }
+                            keepMenuOpen = false;
+                        } else if (selected.action === 'zerops.openServiceDashboard') {
+                            if (settings.serviceId) {
+                                vscode.env.openExternal(vscode.Uri.parse(`https://app.zerops.io/service-stack/${settings.serviceId}/dashboard`));
+                            }
                             keepMenuOpen = false;
                         } else {
                             vscode.commands.executeCommand(selected.action);
@@ -1357,5 +1208,37 @@ async function handleExploreService(settings: any) {
         if (url) {
             vscode.env.openExternal(vscode.Uri.parse(url));
         }
+    }
+}
+
+async function openDiscordServer() {
+    const serverId = '735781031147208777';
+    const discordLink = `https://discord.com/channels/${serverId}`;
+    const discordInviteLink = 'https://discord.gg/3yZknaRhxK';
+    
+    try {
+        const directDiscordUrl = `discord://discord.com/channels/${serverId}`;
+        
+        if (process.platform === 'darwin') {
+            const { exec } = require('child_process');
+            
+            exec(`open "${directDiscordUrl}"`, (error: any) => {
+                if (error) {
+                    vscode.env.openExternal(vscode.Uri.parse(directDiscordUrl));
+                }
+            });
+        } else if (process.platform === 'win32') {
+            const { exec } = require('child_process');
+            exec(`start "" "${directDiscordUrl}"`, (error: any) => {
+                if (error) {
+                    vscode.env.openExternal(vscode.Uri.parse(directDiscordUrl));
+                }
+            });
+        } else {
+            vscode.env.openExternal(vscode.Uri.parse(directDiscordUrl));
+        }
+    } catch (error) {
+        console.error('Failed to open Discord server:', error);
+        vscode.env.openExternal(vscode.Uri.parse(discordLink));
     }
 } 

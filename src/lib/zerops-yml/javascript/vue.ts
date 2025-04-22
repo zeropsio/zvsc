@@ -27,7 +27,7 @@ export function detectVueConfiguration(directoryPath: string): { version: 2 | 3,
         
         const version = vueVersion.startsWith('3') ? 3 : 2;
         
-        let buildTool = 'unknown';
+        let buildTool: 'cli' | 'vite' | 'webpack' | 'unknown' = 'unknown';
         
         if (deps['@vue/cli-service']) {
             buildTool = 'cli';
