@@ -87,20 +87,17 @@ export class CliService {
         });
     }
 
-    // Project settings management (for storing service IDs per workspace)
     static async saveProjectSettings(settings: ProjectSettings): Promise<void> {
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         if (!workspaceRoot) {
             throw new Error('No workspace folder found. Please open a folder in VS Code.');
         }
 
-        // Create .vscode directory if it doesn't exist
         const vscodePath = path.join(workspaceRoot, '.vscode');
         if (!fs.existsSync(vscodePath)) {
             fs.mkdirSync(vscodePath, { recursive: true });
         }
 
-        // Save settings to .vscode/zerops.json
         const settingsPath = path.join(vscodePath, 'zerops.json');
         fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
     }
@@ -127,8 +124,6 @@ export class CliService {
 
     static async checkCliInstalled(): Promise<boolean> {
         try {
-            // We'll still use the direct execution method here since we need to
-            // capture the output to verify installation
             const { stdout } = await this.executeCommand('version');
             console.log('zcli version:', stdout);
             return true;
@@ -142,40 +137,32 @@ export class CliService {
 
     static async checkLoginStatus(): Promise<boolean> {
         try {
-            // Run simple 'zcli' command with no arguments to check login status
-            // This should return "Welcome in Zerops!" if logged in
             const { stdout, stderr } = await this.executeCommand('', { appendToOutput: false });
             const output = stdout + stderr;
             
-            // If output contains "Welcome in Zerops!", user is logged in
             if (output.includes('Welcome in Zerops!')) {
                 console.log('User is logged in to Zerops (detected from welcome message)');
                 this.updateLoginStatus(true);
                 return true;
             }
             
-            // Fallback to checking user info if welcome message isn't found
             try {
                 const { stdout: userStdout, stderr: userStderr } = await this.executeCommand('user', { appendToOutput: false });
                 const userOutput = userStdout + userStderr;
                 
-                // If there's an error about being not logged in, user is not logged in
                 if (userOutput.includes('not logged in') || userOutput.includes('login first') || userOutput.includes('unauthorized')) {
                     this.updateLoginStatus(false);
                     return false;
                 }
                 
-                // If we get a response with user information, user is logged in
                 if (userOutput.includes('@') || userOutput.includes('email') || userOutput.includes('user')) {
                     console.log('User is logged in to Zerops (detected from user info)');
                     this.updateLoginStatus(true);
                     return true;
                 }
             } catch (error) {
-                // Ignore errors in fallback check
             }
             
-            // Default to not logged in if we can't determine
             this.updateLoginStatus(false);
             return false;
         } catch (error) {
@@ -185,7 +172,6 @@ export class CliService {
         }
     }
     
-    // Getter for login status
     static getLoginStatus(): boolean {
         return this.isLoggedIn;
     }
@@ -194,11 +180,8 @@ export class CliService {
         try {
             console.log('Logging in to Zerops...');
             
-            // Use executeCommand to run zcli login rather than using the terminal
-            // Don't append to output channel by default to keep it hidden
             const { stdout, stderr } = await this.executeCommand(`login ${token}`, { appendToOutput: false });
             
-            // Check for error message in stderr
             if (stderr && (stderr.includes('error') || stderr.includes('Error'))) {
                 throw new Error(`Login failed: ${stderr}`);
             }
@@ -208,7 +191,6 @@ export class CliService {
             if (success) {
                 console.log('Login successful');
                 
-                // Store the token if context is provided
                 if (context) {
                     await context.secrets.store('zerops-token', token);
                 }
@@ -216,10 +198,8 @@ export class CliService {
                 vscode.window.showInformationMessage('Successfully logged in to Zerops');
                 this.updateLoginStatus(true);
                 
-                // Fetch projects in background after successful login
                 this.listProjects(false).catch(error => {
                     console.error('Initial projects fetch after login failed:', error);
-                    // Silent failure - user can still use the extension
                 });
             } else {
                 console.error('Login failed:', stderr);
@@ -229,7 +209,6 @@ export class CliService {
         } catch (error) {
             console.error('Login failed:', error);
             
-            // Delete the token from secrets if context is provided
             if (context) {
                 await context.secrets.delete('zerops-token');
             }
@@ -245,14 +224,12 @@ export class CliService {
         try {
             console.log('Logging out from Zerops...');
             
-            // Use executeCommand to run zcli logout
             const { stdout, stderr } = await this.executeCommand('logout', { appendToOutput: false });
             
             if (context) {
                 await context.secrets.delete('zerops-token');
             }
             
-            // Clear the projects cache
             this.clearProjectsCache();
             
             this.updateLoginStatus(false);
@@ -271,7 +248,6 @@ export class CliService {
             throw new Error('No workspace folder found. Please open a folder in VS Code.');
         }
 
-        // Save the serviceId to workspace settings
         await this.saveProjectSettings({
             ...(await this.loadProjectSettings()), // Keep existing settings like projectId
             serviceId
@@ -281,15 +257,10 @@ export class CliService {
             const terminal = this.getZeropsTerminal();
             terminal.show(true);
             
-            // Use terminal for the push command instead of spawn
             const command = `zcli push --serviceId ${serviceId}`;
             terminal.sendText(command);
             
-            // No longer set currentPushProcess since we're using terminal
-            // This means we can't cancel it, but that's a trade-off for using terminal
             
-            // Success will be determined by the user seeing the terminal output
-            // We can't automatically detect completion anymore
             return Promise.resolve();
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -306,12 +277,9 @@ export class CliService {
                 return false;
             }
 
-            // Use executeCommand to run zcli login rather than using the terminal
-            // Don't append to output channel to keep it hidden for auto-login
             try {
                 const { stdout, stderr } = await this.executeCommand(`login ${token}`, { appendToOutput: false });
                 
-                // Check for successful login
                 const output = stdout + stderr;
                 if (output.includes('Error') && !output.includes('Welcome')) {
                     console.log('Auto-login failed: token might be invalid');
@@ -326,10 +294,8 @@ export class CliService {
                 return false;
             }
             
-            // Store the token again to ensure it's saved
             await context.secrets.store('zerops-token', token);
             
-            // If we got here, login worked
             this.updateLoginStatus(true);
             console.log('Auto-login successful');
             return true;
@@ -351,9 +317,7 @@ export class CliService {
     }
 
     private static getZeropsTerminal(): vscode.Terminal {
-        // First check if there's an existing Zerops terminal
         if (!this.zeropsTerminal) {
-            // Look for an existing terminal named 'Zerops'
             const existingTerminals = vscode.window.terminals;
             const existingZeropsTerminal = existingTerminals.find(term => term.name === 'Zerops');
             
@@ -361,12 +325,10 @@ export class CliService {
                 console.log('Found existing Zerops terminal, reusing it');
                 this.zeropsTerminal = existingZeropsTerminal;
             } else {
-                // Create a new terminal if none exists
                 console.log('Creating new Zerops terminal');
                 this.zeropsTerminal = vscode.window.createTerminal('Zerops');
             }
             
-            // Clean up reference when terminal is closed
             vscode.window.onDidCloseTerminal(terminal => {
                 if (terminal === this.zeropsTerminal) {
                     this.zeropsTerminal = null;
@@ -382,7 +344,6 @@ export class CliService {
         outputChannel.appendLine(`Connecting VPN to project ${projectId}...`);
         
         try {
-            // Save the projectId to the workspace settings
             await this.saveProjectSettings({
                 ...(await this.loadProjectSettings()), // Keep existing settings
                 projectId // Add or update the projectId
@@ -447,25 +408,20 @@ export class CliService {
     
     static async listProjects(useCache: boolean = true): Promise<{id: string, name: string}[]> {
         try {
-            // Return cached data if available and requested
             if (useCache && this.projectsCache !== null) {
                 return this.projectsCache;
             }
             
             const { stdout } = await this.executeCommand('project list', { appendToOutput: true });
-            // Parse the stdout to extract project IDs and names
             const projects: {id: string, name: string}[] = [];
             
-            // Split by lines and process the table output (skipping header and separator lines)
             const lines = stdout.split('\n');
             for (let i = 2; i < lines.length; i++) {
                 const line = lines[i].trim();
-                // Skip empty lines and separator lines
                 if (line === '' || line.startsWith('├') || line.startsWith('└') || line.startsWith('┌')) {
                     continue;
                 }
                 
-                // Parse line using regex to extract ID and Name from table format
                 const match = line.match(/│\s+([a-zA-Z0-9+/=]+)\s+│\s+([^│]+)/);
                 if (match && match.length >= 3) {
                     const id = match[1].trim();
@@ -474,7 +430,6 @@ export class CliService {
                 }
             }
             
-            // Cache the fetched projects
             this.projectsCache = projects;
             
             return projects;

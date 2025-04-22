@@ -15,10 +15,8 @@ let guiStatusBarItem: vscode.StatusBarItem;
 let vpnDownStatusBarItem: vscode.StatusBarItem;
 
 function updateStatusBarVisibility() {
-    // Check if there's an active editor
     const activeEditor = vscode.window.activeTextEditor;
     if (activeEditor) {
-        // Show status bar items when there's an active editor
         if (zeropsStatusBarItem) zeropsStatusBarItem.show();
         if (pushStatusBarItem) pushStatusBarItem.show();
         if (vpnUpStatusBarItem) vpnUpStatusBarItem.show();
@@ -26,7 +24,6 @@ function updateStatusBarVisibility() {
         if (guiStatusBarItem) guiStatusBarItem.show();
         if (vpnDownStatusBarItem) vpnDownStatusBarItem.show();
     } else {
-        // Optional: hide some items when no editor is active
     }
 }
 
@@ -54,7 +51,6 @@ export async function activate(context: vscode.ExtensionContext) {
             console.log('User is already logged in');
         }
 
-        // Fetch projects in the background on startup
         CliService.listProjects(false).catch(error => {
             console.error('Failed to fetch projects on startup:', error);
         });
@@ -743,7 +739,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
         let exploreGuiFromStatusBarCommand = vscode.commands.registerCommand('zerops.exploreGuiFromStatusBar', async () => {
             try {
-                // Trigger background fetch of projects for later use
                 CliService.listProjects(false).catch(error => {
                     console.error('Background project fetch failed:', error);
                 });
@@ -802,7 +797,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
         let exploreGuiCommand = vscode.commands.registerCommand('zerops.exploreGui', async () => {
             try {
-                // Trigger background fetch of projects for later use
                 CliService.listProjects(false).catch(error => {
                     console.error('Background project fetch failed:', error);
                 });
@@ -848,15 +842,12 @@ export async function activate(context: vscode.ExtensionContext) {
                 
                 if (guiSelected.action === 'exploreProjects') {
                     try {
-                        // First, get projects from cache
                         let projects = await CliService.listProjects(true);
                         let projectsShown = false;
                         
-                        // If we have cached projects, show them immediately
                         if (projects.length > 0) {
                             projectsShown = true;
                             
-                            // Display cached projects to the user
                             const projectOptions = projects.map(project => ({
                                 label: `$(project) ${project.name}`,
                                 description: project.id,
@@ -871,9 +862,7 @@ export async function activate(context: vscode.ExtensionContext) {
                                 projectId: ''
                             });
                             
-                            // Start fetching fresh data in background
                             const refreshingMessage = vscode.window.setStatusBarMessage("$(sync~spin) Refreshing projects...");
-                            // Start the fetch but don't await it
                             CliService.listProjects(false)
                                 .catch(error => {
                                     console.error('Failed to refresh projects list:', error);
@@ -891,14 +880,12 @@ export async function activate(context: vscode.ExtensionContext) {
                             }
                             
                             if (projectSelected.action === 'goBack') {
-                                // Go back to the GUI menu
                                 vscode.commands.executeCommand('zerops.exploreGui');
                             } else if (projectSelected.action === 'openProject' && projectSelected.projectId) {
                                 vscode.env.openExternal(vscode.Uri.parse(`https://app.zerops.io/project/${projectSelected.projectId}/service-stacks`));
                             }
                         }
                         
-                        // If no cached projects, show loading and fetch
                         if (!projectsShown) {
                             const loadingMessage = vscode.window.setStatusBarMessage("$(sync~spin) Loading projects...");
                             projects = await CliService.listProjects(false);
@@ -932,7 +919,6 @@ export async function activate(context: vscode.ExtensionContext) {
                             }
                             
                             if (projectSelected.action === 'goBack') {
-                                // Go back to the GUI menu
                                 vscode.commands.executeCommand('zerops.exploreGui');
                             } else if (projectSelected.action === 'openProject' && projectSelected.projectId) {
                                 vscode.env.openExternal(vscode.Uri.parse(`https://app.zerops.io/project/${projectSelected.projectId}/service-stacks`));
@@ -965,7 +951,6 @@ export async function activate(context: vscode.ExtensionContext) {
                         }
                         
                         if (serviceSelected.action === 'backToGuiMenu') {
-                            // Go back to GUI menu
                             vscode.commands.executeCommand('zerops.exploreGui');
                         } else if (serviceSelected.action === 'zerops.openServiceDashboard') {
                             vscode.commands.executeCommand(serviceSelected.action);
@@ -1013,7 +998,6 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         });
 
-        // Add correct login and logout commands
         const loginCommand = vscode.commands.registerCommand('zerops.login', async () => {
             try {
                 const token = await vscode.window.showInputBox({
@@ -1098,15 +1082,12 @@ export function deactivate() {
 
 async function handleExploreProjects() {
     try {
-        // First, get projects from cache
         let projects = await CliService.listProjects(true);
         let projectsShown = false;
         
-        // If we have cached projects, show them immediately
         if (projects.length > 0) {
             projectsShown = true;
             
-            // Display cached projects to the user
             const projectOptions = projects.map(project => ({
                 label: `$(project) ${project.name}`,
                 description: project.id,
@@ -1121,9 +1102,7 @@ async function handleExploreProjects() {
                 projectId: ''
             });
             
-            // Start fetching fresh data in background
             const refreshingMessage = vscode.window.setStatusBarMessage("$(sync~spin) Refreshing projects...");
-            // Start the fetch but don't await it
             CliService.listProjects(false)
                 .catch(error => {
                     console.error('Failed to refresh projects list:', error);
@@ -1141,14 +1120,12 @@ async function handleExploreProjects() {
             }
             
             if (projectSelected.action === 'goBack') {
-                // Go back to the GUI menu
                 vscode.commands.executeCommand('zerops.exploreGuiFromStatusBar');
             } else if (projectSelected.action === 'openProject' && projectSelected.projectId) {
                 vscode.env.openExternal(vscode.Uri.parse(`https://app.zerops.io/project/${projectSelected.projectId}/service-stacks`));
             }
         }
         
-        // If no cached projects, show loading and fetch
         if (!projectsShown) {
             const loadingMessage = vscode.window.setStatusBarMessage("$(sync~spin) Loading projects...");
             projects = await CliService.listProjects(false);
@@ -1182,7 +1159,6 @@ async function handleExploreProjects() {
             }
             
             if (projectSelected.action === 'goBack') {
-                // Go back to the GUI menu
                 vscode.commands.executeCommand('zerops.exploreGuiFromStatusBar');
             } else if (projectSelected.action === 'openProject' && projectSelected.projectId) {
                 vscode.env.openExternal(vscode.Uri.parse(`https://app.zerops.io/project/${projectSelected.projectId}/service-stacks`));
@@ -1221,7 +1197,6 @@ async function handleExploreService(settings: any) {
     }
     
     if (serviceSelected.action === 'backToGuiMenu') {
-        // Go back to GUI menu
         vscode.commands.executeCommand('zerops.exploreGuiFromStatusBar');
     } else if (serviceSelected.action === 'zerops.openServiceDashboard') {
         vscode.commands.executeCommand(serviceSelected.action);

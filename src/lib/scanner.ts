@@ -4,12 +4,6 @@ import * as path from 'path';
 import { frameworkPatterns, frameworkMetadata, frameworkDetectors, getYamlForFramework } from './zerops-yml/index';
 import { SupportedFramework, FrameworkPattern, FrameworkMetadata, FrameworkDetectionResult } from './framework-types';
 
-// Define framework detector interface
-// interface FrameworkDetectionResult {
-//     detected: boolean;
-//     certainty: number;
-//     detectedItems: string[];
-// }
 
 export interface ScanResult {
     framework: SupportedFramework;
@@ -37,7 +31,6 @@ export class Scanner {
             }
         }
         
-        // Sort only by certainty
         results.sort((a, b) => b.certainty - a.certainty);
         
         return results;
@@ -54,7 +47,6 @@ export class Scanner {
         const detectedItems: string[] = [];
         let certainty = 0;
         
-        // Check required files
         if (pattern.requiredFiles) {
             let foundFiles = 0;
             for (const file of pattern.requiredFiles) {
@@ -70,7 +62,6 @@ export class Scanner {
             }
         }
         
-        // Check required directories
         if (pattern.requiredDirs) {
             let foundDirs = 0;
             for (const dir of pattern.requiredDirs) {
@@ -86,7 +77,6 @@ export class Scanner {
             }
         }
         
-        // Check content patterns
         if (pattern.contentPatterns) {
             let matchedPatterns = 0;
             let totalPatterns = 0;
@@ -111,7 +101,6 @@ export class Scanner {
             }
         }
         
-        // Check dependencies
         if (pattern.dependencies) {
             const packageJsonPath = path.join(directoryPath, 'package.json');
             
@@ -139,16 +128,13 @@ export class Scanner {
                         certainty += (matchedDeps / totalDeps) * 30;
                     }
                 } catch (error) {
-                    // Invalid package.json
                 }
             }
         }
         
-        // Run custom framework detector if available
         if (framework in frameworkDetectors && frameworkDetectors[framework as keyof typeof frameworkDetectors]) {
             try {
                 const detector = frameworkDetectors[framework as keyof typeof frameworkDetectors];
-                // Use type assertion since we can't know exact structure at compile time
                 const detectorObj = detector as any;
                 if (typeof detectorObj === 'function') {
                     const customDetectionResult = await detectorObj(directoryPath);
@@ -158,7 +144,6 @@ export class Scanner {
                     }
                 }
             } catch (error) {
-                // Custom detector failed
             }
         }
         
@@ -175,13 +160,9 @@ export class Scanner {
      */
     private static isSupportedFramework(framework: string): framework is SupportedFramework {
         return [
-            // JavaScript ecosystem
             'nextjs', 'astro', 'react', 'vue', 'nodejs', 'javascript', 'deno', 'nestjs',
-            // GoLang ecosystem
             'golang', 'gin', 'echo', 'fiber',
-            // Python ecosystem
             'python', 'django', 'flask', 'fastapi',
-            // Java ecosystem
             'java', 'spring', 'springboot', 'quarkus', 'micronaut'
         ].includes(framework);
     }
@@ -195,7 +176,6 @@ export class Scanner {
      */
     public static generateZeropsYml(framework: SupportedFramework, outputPath: string, directoryPath: string): boolean {
         try {
-            // Get the appropriate YAML for this framework, considering its configuration
             const yml = getYamlForFramework(framework, directoryPath);
             
             fs.writeFileSync(outputPath, yml);
@@ -210,14 +190,12 @@ export class Scanner {
      * Gets the metadata for a framework safely
      */
     private static getFrameworkMetadata(framework: string): { name: string; type: string; description: string } {
-        // Default metadata if not found
         const defaultMetadata = {
             name: framework.charAt(0).toUpperCase() + framework.slice(1),
             type: 'unknown',
             description: `${framework} framework`
         };
         
-        // Check if the framework is a supported one
         if (Scanner.isSupportedFramework(framework)) {
             const supportedFramework = framework as SupportedFramework;
             if (supportedFramework in frameworkMetadata) {
@@ -333,7 +311,6 @@ export class Scanner {
         workspacePath: string
     ): Promise<void> {
         if (results.length === 0) {
-            // No frameworks detected, use nodejs as default
             const useDefault = await vscode.window.showInformationMessage(
                 'No specific framework detected. Use generic Node.js configuration?',
                 'Yes', 'No'
@@ -350,7 +327,6 @@ export class Scanner {
             return;
         }
         
-        // Create quickpick items from results
         const items = results.map(result => {
             const frameworkInfo = Scanner.getFrameworkInfo(result.framework, workspacePath);
             
@@ -362,7 +338,6 @@ export class Scanner {
             };
         });
         
-        // Add generic nodejs option at the end
         items.push({
             label: 'Generic Node.js',
             description: 'Basic Node.js configuration',
@@ -378,7 +353,6 @@ export class Scanner {
         if (selected) {
             const outputPath = path.join(workspacePath, 'zerops.yml');
             
-            // Check if zerops.yml already exists
             if (fs.existsSync(outputPath)) {
                 const overwrite = await vscode.window.showWarningMessage(
                     'zerops.yml already exists. Do you want to overwrite it?',

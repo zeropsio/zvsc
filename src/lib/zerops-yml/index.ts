@@ -15,7 +15,6 @@ import { FrameworkPattern, FrameworkMetadata, SupportedFramework, FrameworkDetec
 export { SupportedFramework, FrameworkPattern, FrameworkMetadata, FrameworkDetectionResult };
 
 export const frameworkPatterns: Record<string, FrameworkPattern> = {
-    // JavaScript ecosystem
     nextjs: nextjsPattern,
     astro: astroPattern,
     react: reactPattern,
@@ -23,14 +22,12 @@ export const frameworkPatterns: Record<string, FrameworkPattern> = {
     nodejs: nodejsPattern,
     nestjs: nestjsPattern,
     javascript: javascriptPattern,
-    // Other languages
     golang: golangPattern,
     python: pythonPattern,
     java: javaPattern
 };
 
 export const frameworkMetadata: Record<string, FrameworkMetadata> = {
-    // JavaScript ecosystem
     nextjs: nextjsMetadata,
     astro: astroMetadata,
     react: reactMetadata,
@@ -38,14 +35,12 @@ export const frameworkMetadata: Record<string, FrameworkMetadata> = {
     nodejs: nodejsMetadata,
     nestjs: nestjsMetadata,
     javascript: javascriptMetadata,
-    // Other languages
     golang: golangMetadata,
     python: pythonMetadata,
     java: javaMetadata
 };
 
 export const frameworkDetectors = {
-    // JavaScript ecosystem
     nextjs: { isStatic: isStaticNextjs },
     astro: { isStatic: isStaticAstro },
     react: { detectBuildTool: detectReactBuildTool },
@@ -53,14 +48,12 @@ export const frameworkDetectors = {
     nodejs: { detectType: detectNodejsType },
     nestjs: { detectConfig: detectNestjsConfig },
     javascript: { detectType: detectJavaScriptType },
-    // Other languages
     golang: { detectType: detectGolangType },
     python: { detectType: detectPythonType },
     java: { detectType: detectJavaType }
 };
 
 export const frameworkYamls = {
-    // JavaScript ecosystem
     nextjs: nextjsYml,
     nextjsStatic: nextjsStaticYml,
     astro: astroYml,
@@ -75,19 +68,16 @@ export const frameworkYamls = {
     javascript: javascriptYml,
     javascriptTs: javascriptTsYml,
     deno: denoYml,
-    // GoLang ecosystem
     golang: golangYml,
     gin: ginYml,
     echo: echoYml,
     fiber: fiberYml,
     gorilla: gorillaYml,
-    // Python ecosystem
     python: pythonYml,
     django: djangoYml,
     flask: flaskYml,
     fastapi: fastApiYml,
     pyramid: pyramidYml,
-    // Java ecosystem
     java: javaYml,
     spring: springYml,
     springboot: springBootYml,
@@ -100,7 +90,6 @@ export function getYamlForFramework(
     directoryPath: string
 ): string {
     switch (framework) {
-        // JavaScript ecosystem
         case 'nextjs': 
             return isStaticNextjs(directoryPath) ? nextjsStaticYml : nextjsYml;
         
@@ -130,7 +119,6 @@ export function getYamlForFramework(
             return javascriptYml;
         }
         
-        // GoLang ecosystem
         case 'golang': {
             const goType = detectGolangType(directoryPath);
             if (goType.hasGin) return ginYml;
@@ -140,7 +128,6 @@ export function getYamlForFramework(
             return golangYml;
         }
         
-        // Python ecosystem
         case 'python': {
             const pyType = detectPythonType(directoryPath);
             if (pyType.hasDjango) return djangoYml;
@@ -150,7 +137,6 @@ export function getYamlForFramework(
             return pythonYml;
         }
         
-        // Java ecosystem
         case 'java': {
             const javaType = detectJavaType(directoryPath);
             if (javaType.hasSpringBoot) return springBootYml;

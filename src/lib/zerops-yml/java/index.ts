@@ -2,7 +2,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { FrameworkMetadata, FrameworkPattern } from '../../framework-types';
 
-// Basic Java pattern
 export const javaPattern: FrameworkPattern = {
     requiredFiles: ['pom.xml'],
     contentPatterns: [
@@ -19,7 +18,6 @@ export const javaMetadata: FrameworkMetadata = {
     description: 'Java application'
 };
 
-// Detect Java framework type
 export function detectJavaType(directoryPath: string) {
     const hasSpringBoot = checkForSpringBoot(directoryPath);
     const hasSpring = hasSpringBoot || checkForSpring(directoryPath);
@@ -35,7 +33,6 @@ export function detectJavaType(directoryPath: string) {
 }
 
 function checkForSpringBoot(directoryPath: string): boolean {
-    // Check for Spring Boot dependencies in pom.xml or build.gradle
     const pomPath = path.join(directoryPath, 'pom.xml');
     if (fs.existsSync(pomPath)) {
         const content = fs.readFileSync(pomPath, 'utf8');
@@ -60,7 +57,6 @@ function checkForSpringBoot(directoryPath: string): boolean {
         }
     }
     
-    // Look for Spring Boot application class
     const javaFiles = findFiles(directoryPath, '.java');
     for (const file of javaFiles) {
         const content = fs.readFileSync(file, 'utf8');
@@ -74,7 +70,6 @@ function checkForSpringBoot(directoryPath: string): boolean {
 }
 
 function checkForSpring(directoryPath: string): boolean {
-    // Check for Spring Core dependencies in pom.xml or build.gradle
     const pomPath = path.join(directoryPath, 'pom.xml');
     if (fs.existsSync(pomPath)) {
         const content = fs.readFileSync(pomPath, 'utf8');
@@ -97,7 +92,6 @@ function checkForSpring(directoryPath: string): boolean {
         }
     }
     
-    // Look for Spring annotations in Java files
     const javaFiles = findFiles(directoryPath, '.java');
     for (const file of javaFiles) {
         const content = fs.readFileSync(file, 'utf8');
@@ -115,7 +109,6 @@ function checkForSpring(directoryPath: string): boolean {
 }
 
 function checkForQuarkus(directoryPath: string): boolean {
-    // Check for Quarkus dependencies in pom.xml or build.gradle
     const pomPath = path.join(directoryPath, 'pom.xml');
     if (fs.existsSync(pomPath)) {
         const content = fs.readFileSync(pomPath, 'utf8');
@@ -138,7 +131,6 @@ function checkForQuarkus(directoryPath: string): boolean {
         }
     }
     
-    // Check for application.properties with Quarkus config
     const propertiesPath = path.join(directoryPath, 'src', 'main', 'resources', 'application.properties');
     if (fs.existsSync(propertiesPath)) {
         const content = fs.readFileSync(propertiesPath, 'utf8');
@@ -151,7 +143,6 @@ function checkForQuarkus(directoryPath: string): boolean {
 }
 
 function checkForMicronaut(directoryPath: string): boolean {
-    // Check for Micronaut dependencies in pom.xml or build.gradle
     const pomPath = path.join(directoryPath, 'pom.xml');
     if (fs.existsSync(pomPath)) {
         const content = fs.readFileSync(pomPath, 'utf8');
@@ -174,7 +165,6 @@ function checkForMicronaut(directoryPath: string): boolean {
         }
     }
     
-    // Look for Micronaut annotations in Java files
     const javaFiles = findFiles(directoryPath, '.java');
     for (const file of javaFiles) {
         const content = fs.readFileSync(file, 'utf8');
@@ -187,7 +177,6 @@ function checkForMicronaut(directoryPath: string): boolean {
     return false;
 }
 
-// Helper function to find files with a specific extension
 function findFiles(dir: string, extension: string): string[] {
     if (!fs.existsSync(dir)) {
         return [];
@@ -210,7 +199,6 @@ function findFiles(dir: string, extension: string): string[] {
     return results;
 }
 
-// Java template
 export const javaYml = `services:
   # Base Java application
   app:
@@ -226,7 +214,6 @@ export const javaYml = `services:
       memory: 1024Mi
 `;
 
-// Spring template
 export const springYml = `services:
   # Spring application
   app:
@@ -242,7 +229,6 @@ export const springYml = `services:
       memory: 1536Mi
 `;
 
-// Spring Boot template
 export const springBootYml = `services:
   # Spring Boot application
   app:
@@ -260,7 +246,6 @@ export const springBootYml = `services:
       SPRING_PROFILES_ACTIVE: production
 `;
 
-// Quarkus template
 export const quarkusYml = `services:
   # Quarkus application
   app:
@@ -278,7 +263,6 @@ export const quarkusYml = `services:
       QUARKUS_PROFILE: prod
 `;
 
-// Micronaut template
 export const micronautYml = `services:
   # Micronaut application
   app:

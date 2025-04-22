@@ -103,7 +103,6 @@ export const denoYml = `zerops:
           httpSupport: true
       start: deno run --allow-net main.ts`;
 
-// Export framework patterns
 export {
     nextjsPattern, astroPattern, reactPattern, vuePattern, nodejsPattern, nestjsPattern,
     nextjsMetadata, astroMetadata, reactMetadata, vueMetadata, nodejsMetadata, nestjsMetadata,
