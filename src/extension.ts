@@ -81,7 +81,6 @@ export async function activate(context: vscode.ExtensionContext) {
                     const serviceId = await vscode.window.showInputBox({
                         prompt: 'Enter your Zerops Service ID',
                         placeHolder: 'Service ID from Zerops Dashboard',
-                        ignoreFocusOut: true,
                         validateInput: (value: string) => {
                             return value && value.length > 0 ? null : 'Service ID is required';
                         }
@@ -108,7 +107,6 @@ export async function activate(context: vscode.ExtensionContext) {
                     const projectId = await vscode.window.showInputBox({
                         prompt: 'Enter your Zerops Project ID',
                         placeHolder: 'Project ID from Zerops Dashboard',
-                        ignoreFocusOut: true,
                         validateInput: (value: string) => {
                             return value && value.length > 0 ? null : 'Project ID is required';
                         }
@@ -164,7 +162,7 @@ export async function activate(context: vscode.ExtensionContext) {
                             commands.push({ label: '$(debug-disconnect) VPN Down', action: 'zerops.vpnDownFromStatusBar', keepOpen: false });
                         }
                         
-                        commands.push({ label: '$(globe) Explore GUI', action: 'exploreGui', keepOpen: true });
+                        commands.push({ label: '$(globe) Explore GUI', action: 'zerops.exploreGui', keepOpen: true });
 
                         commands.push({ label: '$(book) Zerops Docs', action: 'openDocs', keepOpen: false });
                         
@@ -212,8 +210,7 @@ export async function activate(context: vscode.ExtensionContext) {
                                 });
                                 
                                 const recipeSelected = await vscode.window.showQuickPick(recipeOptions, {
-                                    placeHolder: 'Select a recipe to clone',
-                                    ignoreFocusOut: true
+                                    placeHolder: 'Select a recipe to clone'
                                 }) as RecipeOption | undefined;
                                 
                                 if (recipeSelected) {
@@ -227,8 +224,7 @@ export async function activate(context: vscode.ExtensionContext) {
                                         ];
                                         
                                         const cloneOption = await vscode.window.showQuickPick(cloneOptions, {
-                                            placeHolder: 'Where to clone the repository?',
-                                            ignoreFocusOut: true
+                                            placeHolder: 'Where to clone the repository?'
                                         }) as CloneOption | undefined;
                                         
                                         if (cloneOption) {
@@ -339,8 +335,7 @@ export async function activate(context: vscode.ExtensionContext) {
                                 ];
                                 
                                 const configSelected = await vscode.window.showQuickPick(configOptions, {
-                                    placeHolder: 'Select a configuration to initialize',
-                                    ignoreFocusOut: true
+                                    placeHolder: 'Select a configuration to initialize'
                                 });
                                 
                                 if (configSelected) {
@@ -449,8 +444,7 @@ export async function activate(context: vscode.ExtensionContext) {
                             ];
                             
                             const supportSelected = await vscode.window.showQuickPick(supportOptions, {
-                                placeHolder: 'Select support option',
-                                ignoreFocusOut: true
+                                placeHolder: 'Select support option'
                             });
                             
                             if (supportSelected) {
@@ -468,8 +462,7 @@ export async function activate(context: vscode.ExtensionContext) {
                                     ];
                                     
                                     const emailAction = await vscode.window.showQuickPick(emailOptions, {
-                                        placeHolder: 'Choose action for ' + emailAddress,
-                                        ignoreFocusOut: true
+                                        placeHolder: 'Choose action for ' + emailAddress
                                     });
                                     
                                     if (emailAction) {
@@ -488,6 +481,9 @@ export async function activate(context: vscode.ExtensionContext) {
                             } else {
                                 keepMenuOpen = true;
                             }
+                        } else if (selected.action === 'zerops.exploreGui') {
+                            vscode.commands.executeCommand('zerops.exploreGui');
+                            keepMenuOpen = false;
                         } else if (selected.action === 'openDocs') {
                             const panel = vscode.window.createWebviewPanel(
                                 'zeropsDocs',
@@ -596,7 +592,6 @@ export async function activate(context: vscode.ExtensionContext) {
                 const projectId = await vscode.window.showInputBox({
                     prompt: 'Enter your Zerops Project ID',
                     placeHolder: 'Project ID from Zerops Dashboard',
-                    ignoreFocusOut: true,
                     validateInput: (value: string) => {
                         return value && value.length > 0 ? null : 'Project ID is required';
                     }
@@ -671,7 +666,6 @@ export async function activate(context: vscode.ExtensionContext) {
                     const serviceId = await vscode.window.showInputBox({
                         prompt: 'Enter your Zerops Service ID',
                         placeHolder: 'Service ID from Zerops Dashboard',
-                        ignoreFocusOut: true,
                         validateInput: (value: string) => {
                             return value && value.length > 0 ? null : 'Service ID is required';
                         }
@@ -838,6 +832,12 @@ export async function activate(context: vscode.ExtensionContext) {
                     });
                 }
                 
+                guiOptions.push({ 
+                    label: '$(arrow-left) Go Back', 
+                    action: 'goBack', 
+                    description: 'Return to main menu' 
+                });
+                
                 const guiSelected = await vscode.window.showQuickPick(guiOptions, {
                     placeHolder: 'Select GUI to open'
                 });
@@ -1002,6 +1002,8 @@ export async function activate(context: vscode.ExtensionContext) {
                     } else {
                         vscode.window.showWarningMessage('No Service ID found. Please set a Service ID first.');
                     }
+                } else if (guiSelected.action === 'goBack') {
+                    vscode.commands.executeCommand('zerops.exploreGuiFromStatusBar');
                 } else {
                     vscode.commands.executeCommand(guiSelected.action);
                 }
@@ -1018,7 +1020,6 @@ export async function activate(context: vscode.ExtensionContext) {
                     prompt: 'Enter your Zerops Personal Access Token',
                     placeHolder: 'Your token from Zerops Access Token Management',
                     password: true,
-                    ignoreFocusOut: true,
                     validateInput: (value: string) => {
                         return value && value.length > 0 ? null : 'Token is required';
                     }
