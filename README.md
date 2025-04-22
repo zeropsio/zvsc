@@ -6,20 +6,24 @@
   <b>zVSC: Zerops VS Code Extension for Interacting with Zerops</b>
 </p>
 
-<!-- <p align="center">
+<p align="center">
   <a href="https://marketplace.visualstudio.com/items?itemName=Zerops.zvsc">
     <img src="https://img.shields.io/visual-studio-marketplace/v/Zerops.zvsc" alt="Visual Studio Marketplace Version">
   </a>
   <a href="https://marketplace.visualstudio.com/items?itemName=Zerops.zvsc">
     <img src="https://img.shields.io/visual-studio-marketplace/d/Zerops.zvsc" alt="Visual Studio Marketplace Downloads">
   </a>
+
+  <a href="https://open-vsx.org/extension/Zerops/zvsc">
+    <img src="https://img.shields.io/open-vsx/v/Zerops/zvsc" alt="Open Vsx Zerops">
+  </a>
+  <a href="https://open-vsx.org/extension/Zerops/zvsc">
+    <img src="https://img.shields.io/open-vsx/dt/Zerops/zvsc/latest" alt="Open Vsx Total Downloads">
+  </a>
   <a href="https://marketplace.visualstudio.com/items?itemName=Zerops.zvsc">
-    <img src="https://img.shields.io/visual-studio-marketplace/r/Zerops.zvsc" alt="Visual Studio Marketplace Rating">
+    <img src="https://img.shields.io/visual-studio-marketplace/last-updated/Zerops.zvsc" alt="Visual Studio Marketplace Last Updated">
   </a>
-  <a href="https://github.com/zeropsio/zvsc/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/zeropsio/zvsc" alt="License">
-  </a>
-</p> -->
+</p>
 
 ## Features
 
