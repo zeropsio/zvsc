@@ -411,22 +411,8 @@ export class Scanner {
             return;
         }
         
-        const workspacePath = workspaceFolders[0].uri.fsPath;
-        
-        await vscode.window.withProgress({
-            location: vscode.ProgressLocation.Notification,
-            title: 'Scanning project for framework detection',
-            cancellable: false
-        }, async (progress) => {
-            progress.report({ increment: 0 });
-            
-            // Scan directory
-            const results = await Scanner.scanDirectory(workspacePath);
-            
-            progress.report({ increment: 100, message: 'Scan complete' });
-            
-            // Prompt user to select framework and generate config
-            await Scanner.promptAndGenerateConfig(results, workspacePath);
-        });
+        const currentWorkspace = workspaceFolders[0].uri.fsPath;
+        const results = await Scanner.scanDirectory(currentWorkspace);
+        await Scanner.promptAndGenerateConfig(results, currentWorkspace);
     }
 }

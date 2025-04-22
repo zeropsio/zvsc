@@ -5,6 +5,7 @@ import * as path from 'path';
 import { Recipe, RecipeOption, CloneOption } from './types';
 import { RECIPES } from './recipes';
 import { ZEROPS_YML, IMPORT_YML } from './init';
+import { Scanner } from './lib/scanner';
 
 let zeropsStatusBarItem: vscode.StatusBarItem;
 let pushStatusBarItem: vscode.StatusBarItem;
@@ -344,8 +345,16 @@ export async function activate(context: vscode.ExtensionContext) {
                                     if (configSelected.action === 'goBack') {
                                         keepMenuOpen = true;
                                     } else if (configSelected.action === 'detectFramework') {
-                                        const { ProjectScanner } = require('./lib/scanner');
-                                        await ProjectScanner.scanAndGenerate();
+                                        const workspaceFolders = vscode.workspace.workspaceFolders;
+                                        if (!workspaceFolders || workspaceFolders.length === 0) {
+                                            vscode.window.showErrorMessage('No workspace folder is open. Please open a folder first.');
+                                            keepMenuOpen = true;
+                                            continue;
+                                        }
+                                        
+                                        const currentWorkspace = workspaceFolders[0].uri.fsPath;
+                                        const results = await Scanner.scanDirectory(currentWorkspace);
+                                        await Scanner.promptAndGenerateConfig(results, currentWorkspace);
                                         keepMenuOpen = false;
                                     } else if (configSelected.action === 'initZYml') {
                                         const workspaceFolders = vscode.workspace.workspaceFolders;
