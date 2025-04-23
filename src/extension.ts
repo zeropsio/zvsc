@@ -169,13 +169,9 @@ export async function activate(context: vscode.ExtensionContext) {
                         
                         commands.push({ label: '$(globe) Explore GUI', action: 'zerops.exploreGui', keepOpen: true });
 
-                        commands.push({ label: '$(graph) Cost Calculator', action: 'zerops.exploreCostCalculator', keepOpen: false });
-
-                        commands.push({ label: '$(book) Zerops Docs', action: 'openDocs', keepOpen: false });
-                        
-                        commands.push({ label: '$(repo-clone) Clone Recipe', action: 'cloneRecipe', keepOpen: true });
-
                         commands.push({ label: '$(file-add) Init Configurations', action: 'initConfigurations', keepOpen: true });
+
+                        commands.push({ label: '$(graph) Cost Calculator', action: 'zerops.exploreCostCalculator', keepOpen: false });
 
                         commands.push({ label: '$(comment-discussion) Support', action: 'support', keepOpen: true });
 
