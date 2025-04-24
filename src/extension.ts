@@ -6,7 +6,8 @@ import { Recipe, RecipeOption, CloneOption } from './types';
 import { RECIPES } from './recipes';
 import { ZEROPS_YML, IMPORT_YML } from './init';
 import { Scanner } from './lib/scanner';
-import { CostCalculatorService } from './services/costCalculatorService';
+import { GitHubWorkflowService } from './services/githubWorkflowService';
+import { ProjectSettings, loadProjectSettings } from './utils/settings';
 
 let zeropsStatusBarItem: vscode.StatusBarItem;
 let pushStatusBarItem: vscode.StatusBarItem;
@@ -28,6 +29,11 @@ function updateStatusBarVisibility() {
         if (terminalStatusBarItem) terminalStatusBarItem.show();
     } else {
     }
+}
+
+interface TerminalDataEvent {
+    terminal: vscode.Terminal;
+    data: string;
 }
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -78,29 +84,20 @@ export async function activate(context: vscode.ExtensionContext) {
         guiStatusBarItem.command = 'zerops.exploreGuiFromStatusBar';
         guiStatusBarItem.show();
         
-        let pushFromStatusBarCommand = vscode.commands.registerCommand('zerops.pushFromStatusBar', async () => {
+        const githubWorkflowService = GitHubWorkflowService.getInstance();
+        
+        let pushCommand = vscode.commands.registerCommand('zerops.pushFromStatusBar', async () => {
+            const settings = await loadProjectSettings();
+            if (!settings?.serviceId) {
+                vscode.window.showErrorMessage('No service ID found. Please set a service ID in .vscode/zerops.json or through the Settings menu.');
+                return;
+            }
+
             try {
-                const settings = await CliService.loadProjectSettings();
-                
-                if (!settings.serviceId) {
-                    const serviceId = await vscode.window.showInputBox({
-                        prompt: 'Enter your Zerops Service ID',
-                        placeHolder: 'Service ID from Zerops Dashboard',
-                        validateInput: (value: string) => {
-                            return value && value.length > 0 ? null : 'Service ID is required';
-                        }
-                    });
-                    
-                    if (serviceId) {
-                        await CliService.pushToService(serviceId);
-                    }
-                } else {
-                    await CliService.pushToService(settings.serviceId);
-                }
+                await vscode.commands.executeCommand('zerops.push');
             } catch (error) {
-                console.error('Push failed:', error);
                 const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-                vscode.window.showErrorMessage(`Failed to push: ${errorMessage}`);
+                vscode.window.showErrorMessage(`Push failed: ${errorMessage}`);
             }
         });
         
@@ -170,8 +167,6 @@ export async function activate(context: vscode.ExtensionContext) {
                         commands.push({ label: '$(globe) Explore GUI', action: 'zerops.exploreGui', keepOpen: true });
 
                         commands.push({ label: '$(file-add) Init Configurations', action: 'initConfigurations', keepOpen: true });
-
-                        commands.push({ label: '$(graph) Cost Calculator', action: 'zerops.exploreCostCalculator', keepOpen: false });
 
                         commands.push({ label: '$(comment-discussion) Support', action: 'support', keepOpen: true });
 
@@ -332,6 +327,7 @@ export async function activate(context: vscode.ExtensionContext) {
                                     { label: '$(file-code) Init zerops.yml', action: 'initZYml', description: 'Initializes a zerops.yml file in root' },
                                     { label: '$(file-code) Init zerops-project-import.yml', action: 'initZYmlImport', description: 'Initializes a zerops-project-import.yml file in root' },
                                     { label: '$(search) Scan Project for Framework', action: 'detectFramework', description: 'Scan project and generate zerops.yml' },
+                                    { label: '$(github) Add GitHub Workflow', action: 'initGitHubWorkflow', description: 'Adds GitHub workflow for automated deployments' },
                                     { label: '$(arrow-left) Go Back', action: 'goBack', description: 'Return to main menu' }
                                 ];
                                 
@@ -354,6 +350,46 @@ export async function activate(context: vscode.ExtensionContext) {
                                         const { scanProjectForFramework } = require('./init');
                                         await scanProjectForFramework(currentWorkspace);
                                         keepMenuOpen = false;
+                                    } else if (configSelected.action === 'initGitHubWorkflow') {
+                                        const workspaceFolders = vscode.workspace.workspaceFolders;
+                                        if (!workspaceFolders || workspaceFolders.length === 0) {
+                                            vscode.window.showErrorMessage('No workspace folder is open. Please open a folder first.');
+                                            keepMenuOpen = true;
+                                            continue;
+                                        }
+
+                                        const currentWorkspace = workspaceFolders[0].uri.fsPath;
+                                        const workflowDir = path.join(currentWorkspace, '.github', 'workflows');
+                                        const workflowPath = path.join(workflowDir, 'deploy.yml');
+
+                                        if (fs.existsSync(workflowPath)) {
+                                            const overwrite = await vscode.window.showWarningMessage(
+                                                'GitHub workflow already exists. Do you want to overwrite it?',
+                                                'Yes', 'No'
+                                            );
+                                            
+                                            if (overwrite !== 'Yes') {
+                                                keepMenuOpen = true;
+                                                continue;
+                                            }
+                                        }
+
+                                        const settings = await loadProjectSettings();
+                                        if (!settings?.serviceId) {
+                                            vscode.window.showErrorMessage('No service ID found. Please set a service ID in .vscode/zerops.json or through the Settings menu.');
+                                            keepMenuOpen = true;
+                                            continue;
+                                        }
+
+                                        try {
+                                            // Use the GitHubWorkflowService to create the workflow
+                                            await githubWorkflowService.addWorkflow();
+                                            keepMenuOpen = false;
+                                        } catch (error) {
+                                            console.error('Failed to create GitHub workflow:', error);
+                                            vscode.window.showErrorMessage(`Failed to create GitHub workflow: ${error instanceof Error ? error.message : String(error)}`);
+                                            keepMenuOpen = true;
+                                        }
                                     } else if (configSelected.action === 'initZYml') {
                                         const workspaceFolders = vscode.workspace.workspaceFolders;
                                         if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -603,6 +639,7 @@ export async function activate(context: vscode.ExtensionContext) {
             context.subscriptions.push(guiStatusBarItem);
             context.subscriptions.push(vpnDownStatusBarItem);
             context.subscriptions.push(showCommandsCommand);
+            context.subscriptions.push(pushCommand);
             
             console.log('Created Zerops status bar item');
         } catch (error) {
@@ -1087,31 +1124,10 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         });
 
-        const costCalculatorService = CostCalculatorService.getInstance();
-        
-        let exploreCostCalculatorCommand = vscode.commands.registerCommand('zerops.exploreCostCalculator', async () => {
-            try {
-                await costCalculatorService.startCalculator();
-            } catch (error) {
-                console.error('Failed to open Cost Calculator:', error);
-                vscode.window.showErrorMessage('Failed to open Cost Calculator');
-            }
-        });
-
-        let openTerminalCommand = vscode.commands.registerCommand('zerops.openTerminal', async () => {
-            try {
-                const terminal = vscode.window.createTerminal('Zerops Terminal');
-                terminal.show();
-            } catch (error) {
-                console.error('Failed to open terminal:', error);
-                vscode.window.showErrorMessage('Failed to open terminal');
-            }
-        });
-
-        context.subscriptions.push(
+        const commands = [
             vpnUpCommand,
             vpnDownCommand,
-            pushFromStatusBarCommand,
+            pushCommand,
             vpnUpFromStatusBarCommand,
             vpnDownFromStatusBarCommand,
             exploreServiceFromStatusBarCommand,
@@ -1124,10 +1140,15 @@ export async function activate(context: vscode.ExtensionContext) {
             logoutCommand,
             scanProjectCommand,
             initProjectCommand,
-            exploreCostCalculatorCommand,
-            openTerminalCommand,
-            costCalculatorService
-        );
+            vscode.commands.registerCommand('zerops.initGitHubWorkflow', () => {
+                githubWorkflowService.addWorkflow();
+            }),
+            vscode.commands.registerCommand('zerops.createCommentedGitHubWorkflow', () => {
+                githubWorkflowService.addWorkflow();
+            })
+        ];
+
+        context.subscriptions.push(...commands, githubWorkflowService);
 
         console.log('Zerops extension activated successfully');
     } catch (error) {
@@ -1161,7 +1182,6 @@ export function deactivate() {
     if (terminalStatusBarItem) {
         terminalStatusBarItem.dispose();
     }
-    CostCalculatorService.getInstance().dispose();
 }
 
 async function handleExploreProjects() {
