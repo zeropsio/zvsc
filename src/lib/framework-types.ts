@@ -6,7 +6,7 @@ export interface FrameworkPattern {
         patterns: string[];
     }[];
     dependencies?: {
-        [key: string]: boolean; // true = required, false = should not exist
+        [key: string]: boolean;
     };
     priority?: number;
 }

@@ -16,8 +16,8 @@ export class CliService {
     private static outputChannel: vscode.OutputChannel;
     private static currentPushProcess: ReturnType<typeof spawn> | null = null;
     private static zeropsTerminal: vscode.Terminal | null = null;
-    private static isLoggedIn: boolean = false; // Track login status
-    private static projectsCache: {id: string, name: string}[] | null = null; // Cache for projects list
+    private static isLoggedIn: boolean = false;
+    private static projectsCache: {id: string, name: string}[] | null = null;
 
     private static getOutputChannel(): vscode.OutputChannel {
         if (!this.outputChannel) {
@@ -249,7 +249,7 @@ export class CliService {
         }
 
         await this.saveProjectSettings({
-            ...(await this.loadProjectSettings()), // Keep existing settings like projectId
+            ...(await this.loadProjectSettings()),
             serviceId
         });
 
@@ -345,8 +345,8 @@ export class CliService {
         
         try {
             await this.saveProjectSettings({
-                ...(await this.loadProjectSettings()), // Keep existing settings
-                projectId // Add or update the projectId
+                ...(await this.loadProjectSettings()),
+                projectId
             });
             
             const terminal = this.getZeropsTerminal();

@@ -30,7 +30,7 @@ export function detectNestjsConfig(directoryPath: string): {
         const deps = getDependencies(directoryPath);
         
         return {
-            hasTypeScript: !!deps['typescript'] || true, // NestJS uses TypeScript by default
+            hasTypeScript: !!deps['typescript'] || true,
             hasGraphQL: !!deps['@nestjs/graphql'] || !!deps['apollo-server-express'],
             hasMicroservices: !!deps['@nestjs/microservices']
         };
