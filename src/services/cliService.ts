@@ -4,6 +4,7 @@ import { spawn } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
+import fetch from 'node-fetch';
 
 const execAsync = promisify(exec);
 
@@ -128,10 +129,56 @@ export class CliService {
             console.log('zcli version:', stdout);
             return true;
         } catch (error) {
-            console.error('Failed to verify zcli installation:', error);
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            vscode.window.showErrorMessage(`zcli verification failed: ${errorMessage}. Make sure zcli is installed and in your PATH.`);
+            const installButton = 'Install zcli';
+            const response = await vscode.window.showErrorMessage(
+                'zcli is not installed. Please install it to use this extension.',
+                installButton
+            );
+            
+            if (response === installButton) {
+                const terminal = this.getZeropsTerminal();
+                terminal.show(true);
+                
+                if (process.platform === 'win32') {
+                    terminal.sendText('irm https://zerops.io/zcli/install.ps1 | iex');
+                } else {
+                    terminal.sendText('curl -L https://zerops.io/zcli/install.sh | sh');
+                }
+                
+                vscode.window.showInformationMessage('zcli installation started. Please check the terminal for progress.');
+            }
             return false;
+        }
+    }
+
+    static async checkCliVersion(): Promise<{ current: string, latest: string, needsUpdate: boolean }> {
+        try {
+            const { stdout } = await this.executeCommand('version');
+            const currentVersion = stdout.trim();
+            
+            const response = await fetch('https://api.github.com/repos/zeropsio/zcli/releases/latest');
+            const data = await response.json();
+            const latestVersion = data.tag_name.replace('v', '');
+            
+            return {
+                current: currentVersion,
+                latest: latestVersion,
+                needsUpdate: currentVersion !== latestVersion
+            };
+        } catch (error) {
+            console.error('Failed to check zcli version:', error);
+            throw error;
+        }
+    }
+
+    static async updateCli(): Promise<void> {
+        const terminal = this.getZeropsTerminal();
+        terminal.show(true);
+        
+        if (process.platform === 'win32') {
+            terminal.sendText('irm https://zerops.io/zcli/install.ps1 | iex');
+        } else {
+            terminal.sendText('curl -L https://zerops.io/zcli/install.sh | sh');
         }
     }
 

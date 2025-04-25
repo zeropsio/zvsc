@@ -8,6 +8,7 @@ import { ZEROPS_YML, IMPORT_YML } from './init';
 import { Scanner } from './lib/scanner';
 import { GitHubWorkflowService } from './services/githubWorkflowService';
 import { ProjectSettings, loadProjectSettings } from './utils/settings';
+import fetch from 'node-fetch';
 
 let zeropsStatusBarItem: vscode.StatusBarItem;
 let pushStatusBarItem: vscode.StatusBarItem;
@@ -165,7 +166,7 @@ export async function activate(context: vscode.ExtensionContext) {
                         }
                         
                         commands.push({ label: '$(globe) Explore GUI', action: 'zerops.exploreGui', keepOpen: true });
-
+                        commands.push({ label: '$(book) Zerops Docs', action: 'openDocs', keepOpen: false });
                         commands.push({ label: '$(file-add) Init Configurations', action: 'initConfigurations', keepOpen: true });
 
                         commands.push({ label: '$(comment-discussion) Support', action: 'support', keepOpen: true });
@@ -328,7 +329,7 @@ export async function activate(context: vscode.ExtensionContext) {
                                     { label: '$(file-code) Init zerops-project-import.yml', action: 'initZYmlImport', description: 'Initializes a zerops-project-import.yml file in root' },
                                     { label: '$(search) Scan Project for Framework', action: 'detectFramework', description: 'Scan project and generate zerops.yml' },
                                     { label: '$(github) Add GitHub Workflow', action: 'initGitHubWorkflow', description: 'Adds GitHub workflow for automated deployments' },
-                                    { label: '$(arrow-left) Go Back', action: 'goBack', description: 'Return to main menu' }
+                                    { label: '$(arrow-left) Go Back', action: 'goBack', description: 'Return to main menu', keepMenuOpen: false }
                                 ];
                                 
                                 const configSelected = await vscode.window.showQuickPick(configOptions, {
@@ -477,7 +478,7 @@ export async function activate(context: vscode.ExtensionContext) {
                                 { label: '$(comment-discussion) Discord Community', action: 'openDiscord', description: 'Join our Discord server' },
                                 { label: '$(mail) Email Support', action: 'openEmailSupport', description: 'Contact support@zerops.io' },
                                 { label: '$(globe) Forum', action: 'openForumSupport', description: 'Visit support.zerops.io forum' },
-                                { label: '$(arrow-left) Go Back', action: 'goBack', description: 'Return to main menu' }
+                                { label: '$(arrow-left) Go Back', action: 'goBack', description: 'Return to main menu', keepMenuOpen: false }
                             ];
                             
                             const supportSelected = await vscode.window.showQuickPick(supportOptions, {
@@ -520,8 +521,12 @@ export async function activate(context: vscode.ExtensionContext) {
                             }
                         } else if (selected.action === 'settings') {
                             const settingsOptions = [
-                                { label: '$(gear) General Settings', action: 'generalSettings', description: 'Configure general settings' },
-                                { label: '$(arrow-left) Go Back', action: 'goBack', description: 'Return to main menu' }
+                                { label: '$(edit) Set Service ID', action: 'setServiceId', description: 'Configure a Zerops Service ID' },
+                                { label: '$(edit) Set Project ID', action: 'setProjectId', description: 'Configure a Zerops Project ID' },
+                                { label: '$(sync) Update zCLI', action: 'updateZcli', description: 'Update Zerops CLI to the latest version' },
+                                { label: '$(extensions) Check for Extension Updates', action: 'checkExtensionUpdates', description: 'Check for Zerops extension updates', keepMenuOpen: false },
+                                { label: '$(sign-out) Logout', action: 'zerops.logout', description: 'Logout from Zerops' },
+                                { label: '$(arrow-left) Go Back', action: 'goBack', description: 'Return to main menu', keepMenuOpen: false }
                             ];
                             
                             const settingsSelected = await vscode.window.showQuickPick(settingsOptions, {
@@ -531,9 +536,65 @@ export async function activate(context: vscode.ExtensionContext) {
                             if (settingsSelected) {
                                 if (settingsSelected.action === 'goBack') {
                                     keepMenuOpen = true;
+                                } else if (settingsSelected.action === 'setServiceId') {
+                                    const currentSettings = await CliService.loadProjectSettings();
+                                    const serviceId = await vscode.window.showInputBox({
+                                        prompt: 'Enter your Zerops Service ID',
+                                        placeHolder: 'Service ID from Zerops Dashboard',
+                                        value: currentSettings.serviceId || '',
+                                        validateInput: (value: string) => {
+                                            return value && value.length > 0 ? null : 'Service ID is required';
+                                        }
+                                    });
+                                    
+                                    if (serviceId) {
+                                        await CliService.saveProjectSettings({ 
+                                            serviceId,
+                                            projectId: currentSettings.projectId || ''
+                                        });
+                                        vscode.window.showInformationMessage('Service ID saved successfully');
+                                    }
+                                    keepMenuOpen = true;
+                                } else if (settingsSelected.action === 'setProjectId') {
+                                    const currentSettings = await CliService.loadProjectSettings();
+                                    const projectId = await vscode.window.showInputBox({
+                                        prompt: 'Enter your Zerops Project ID',
+                                        placeHolder: 'Project ID from Zerops Dashboard',
+                                        value: currentSettings.projectId || '',
+                                        validateInput: (value: string) => {
+                                            return value && value.length > 0 ? null : 'Project ID is required';
+                                        }
+                                    });
+                                    
+                                    if (projectId) {
+                                        await CliService.saveProjectSettings({ 
+                                            serviceId: currentSettings.serviceId || '',
+                                            projectId
+                                        });
+                                        vscode.window.showInformationMessage('Project ID saved successfully');
+                                    }
+                                    keepMenuOpen = true;
+                                } else if (settingsSelected.action === 'updateZcli') {
+                                    try {
+                                        const terminal = vscode.window.createTerminal('Zerops CLI Update');
+                                        terminal.show();
+                                        terminal.sendText('curl -s https://zerops.io/install.sh | bash');
+                                        vscode.window.showInformationMessage('Updating Zerops CLI...');
+                                    } catch (error) {
+                                        vscode.window.showErrorMessage(`Failed to update Zerops CLI: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                                    }
+                                    keepMenuOpen = true;
+                                } else if (settingsSelected.action === 'checkExtensionUpdates') {
+                                    keepMenuOpen = false;
+                                    try {
+                                        const extensionId = 'zerops.zvsc';
+                                        vscode.commands.executeCommand('workbench.extensions.action.showExtensionsWithIds', [extensionId]);
+                                    } catch (error) {
+                                        vscode.window.showErrorMessage(`Failed to open extension page: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                                    }
                                 } else {
                                     vscode.commands.executeCommand(settingsSelected.action);
-                                    keepMenuOpen = false;
+                                    keepMenuOpen = true;
                                 }
                             } else {
                                 keepMenuOpen = true;
@@ -593,6 +654,14 @@ export async function activate(context: vscode.ExtensionContext) {
                                 vscode.env.openExternal(vscode.Uri.parse(`https://app.zerops.io/service-stack/${settings.serviceId}/dashboard`));
                             }
                             keepMenuOpen = false;
+                        } else if (selected.action === 'checkExtensionUpdates') {
+                            keepMenuOpen = false;
+                            try {
+                                const extensionId = 'zerops.zvsc';
+                                vscode.commands.executeCommand('workbench.extensions.action.showExtensionsWithIds', [extensionId]);
+                            } catch (error) {
+                                vscode.window.showErrorMessage(`Failed to open extension page: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                            }
                         } else {
                             vscode.commands.executeCommand(selected.action);
                             keepMenuOpen = selected.keepOpen;
@@ -1124,6 +1193,18 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         });
 
+        const costCalculatorStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+        costCalculatorStatusBarItem.command = 'zerops.exploreCostCalculator';
+        costCalculatorStatusBarItem.text = '$(rocket) zCost';
+        costCalculatorStatusBarItem.tooltip = 'Open Cost Calculator';
+        costCalculatorStatusBarItem.show();
+
+        const feedbackStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
+        feedbackStatusBarItem.command = 'zerops.sendFeedback';
+        feedbackStatusBarItem.text = '$(feedback) zFeedback';
+        feedbackStatusBarItem.tooltip = 'Send Feedback';
+        feedbackStatusBarItem.show();
+
         const commands = [
             vpnUpCommand,
             vpnDownCommand,
@@ -1145,12 +1226,93 @@ export async function activate(context: vscode.ExtensionContext) {
             }),
             vscode.commands.registerCommand('zerops.createCommentedGitHubWorkflow', () => {
                 githubWorkflowService.addWorkflow();
+            }),
+            vscode.commands.registerCommand('zerops.sendFeedback', async () => {
+                const consent = await vscode.window.showInformationMessage(
+                    'We will collect your git config (name & email), IDE type, and OS information along with your feedback. Do you want to proceed?',
+                    'Yes', 'No'
+                );
+
+                if (consent !== 'Yes') {
+                    return;
+                }
+
+                const feedback = await vscode.window.showInputBox({
+                    prompt: 'Enter your feedback',
+                    placeHolder: 'Type your message here...',
+                    ignoreFocusOut: true
+                });
+
+                if (feedback) {
+                    try {
+                        const webhookUrl = 'https://discord.com/api/webhooks/1365326827656056872/fY5YdWCQDHCOqEPWboD9et0znlQfjVIFIEUB0aT4p8HiAau-GU3TAB7aAIkcadJFEY6e';
+                        
+                        let gitInfo = 'Git info not available';
+                        try {
+                            const { exec } = require('child_process');
+                            const gitName = await new Promise((resolve) => {
+                                exec('git config user.name', (error: any, stdout: string) => {
+                                    resolve(error ? '' : stdout.trim());
+                                });
+                            });
+                            const gitEmail = await new Promise((resolve) => {
+                                exec('git config user.email', (error: any, stdout: string) => {
+                                    resolve(error ? '' : stdout.trim());
+                                });
+                            });
+                            gitInfo = `${gitName} <${gitEmail}>`;
+                        } catch (error) {
+                            console.error('Failed to get git info:', error);
+                        }
+
+                        const response = await fetch(webhookUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                content: `User: ${gitInfo}
+OS: ${process.platform}
+IDE: ${vscode.env.appName}
+Feedback: ${feedback}
+----------------------------------------`
+                            })
+                        });
+
+                        if (response.ok) {
+                            vscode.window.showInformationMessage('Thank you for your feedback!');
+                        } else {
+                            throw new Error('Failed to send feedback');
+                        }
+                    } catch (error) {
+                        vscode.window.showErrorMessage('Failed to send feedback. Please try again later.');
+                    }
+                }
             })
         ];
 
         context.subscriptions.push(...commands, githubWorkflowService);
+        context.subscriptions.push(
+            costCalculatorStatusBarItem,
+            feedbackStatusBarItem
+        );
 
         console.log('Zerops extension activated successfully');
+
+        try {
+            const versionInfo = await CliService.checkCliVersion();
+            if (versionInfo.needsUpdate) {
+                const updateMessage = `zcli update available: ${versionInfo.current} → ${versionInfo.latest}`;
+                const updateButton = 'Update Now';
+                const response = await vscode.window.showInformationMessage(updateMessage, updateButton);
+                
+                if (response === updateButton) {
+                    await CliService.updateCli();
+                }
+            }
+        } catch (error) {
+            console.error('Failed to check zcli version:', error);
+        }
     } catch (error) {
         console.error('Failed to activate Zerops extension:', error);
         const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
