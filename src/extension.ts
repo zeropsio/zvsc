@@ -75,7 +75,7 @@ export async function activate(context: vscode.ExtensionContext) {
         
         terminalStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
         terminalStatusBarItem.text = "$(terminal) Terminal";
-        terminalStatusBarItem.tooltip = "Open Zerops Terminal";
+        terminalStatusBarItem.tooltip = "Open Terminal";
         terminalStatusBarItem.command = 'zerops.openTerminal';
         terminalStatusBarItem.show();
         
@@ -1245,7 +1245,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
                 if (feedback) {
                     try {
-                        const webhookUrl = 'https://discord.com/api/webhooks/1365326827656056872/fY5YdWCQDHCOqEPWboD9et0znlQfjVIFIEUB0aT4p8HiAau-GU3TAB7aAIkcadJFEY6e';
+                        const webhookUrl = 'https://discord.com/api/webhooks/test';
                         
                         let gitInfo = 'Git info not available';
                         try {

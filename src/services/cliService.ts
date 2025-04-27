@@ -4,7 +4,7 @@ import { spawn } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
-import fetch from 'node-fetch';
+import axios from 'axios';
 
 const execAsync = promisify(exec);
 
@@ -17,8 +17,13 @@ export class CliService {
     private static outputChannel: vscode.OutputChannel;
     private static currentPushProcess: ReturnType<typeof spawn> | null = null;
     private static zeropsTerminal: vscode.Terminal | null = null;
-    private static isLoggedIn: boolean = false; // Track login status
-    private static projectsCache: {id: string, name: string}[] | null = null; // Cache for projects list
+    private static isLoggedIn: boolean = false;
+    private static projectsCache: {id: string, name: string}[] | null = null;
+    private static lastProjectsFetch: number = 0;
+    private static readonly CACHE_TTL = 5 * 60 * 1000;
+    private static projectSettingsCache: ProjectSettings | null = null;
+    private static lastSettingsFetch: number = 0;
+    private static readonly SETTINGS_CACHE_TTL = 1 * 60 * 1000;
 
     private static getOutputChannel(): vscode.OutputChannel {
         if (!this.outputChannel) {
@@ -29,20 +34,31 @@ export class CliService {
 
     private static async executeCommand(command: string, options?: { cwd?: string, appendToOutput?: boolean }): Promise<{ stdout: string; stderr: string }> {
         return new Promise((resolve, reject) => {
+            const outputChannel = this.getOutputChannel();
+            const startTime = Date.now();
+            
+            if (options?.appendToOutput) {
+                outputChannel.appendLine(`Executing: zcli ${command}`);
+            }
+            
             exec(`zcli ${command}`, options, (error, stdout, stderr) => {
+                const executionTime = Date.now() - startTime;
+                
                 if (options?.appendToOutput) {
-                    const outputChannel = this.getOutputChannel();
                     if (stdout) {
                         outputChannel.append(stdout.toString());
                     }
                     if (stderr) {
                         outputChannel.append(stderr.toString());
                     }
+                    outputChannel.appendLine(`Command completed in ${executionTime}ms`);
                 }
                 
                 if (error) {
+                    console.error(`Command failed after ${executionTime}ms:`, error);
                     reject(error);
                 } else {
+                    console.log(`Command completed successfully in ${executionTime}ms`);
                     resolve({
                         stdout: stdout.toString(),
                         stderr: stderr.toString()
@@ -89,38 +105,67 @@ export class CliService {
     }
 
     static async saveProjectSettings(settings: ProjectSettings): Promise<void> {
-        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        if (!workspaceRoot) {
-            throw new Error('No workspace folder found. Please open a folder in VS Code.');
-        }
+        try {
+            const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            if (!workspaceRoot) {
+                throw new Error('No workspace folder found. Please open a folder in VS Code.');
+            }
 
-        const vscodePath = path.join(workspaceRoot, '.vscode');
-        if (!fs.existsSync(vscodePath)) {
-            fs.mkdirSync(vscodePath, { recursive: true });
-        }
+            const vscodePath = path.join(workspaceRoot, '.vscode');
+            if (!fs.existsSync(vscodePath)) {
+                fs.mkdirSync(vscodePath, { recursive: true });
+            }
 
-        const settingsPath = path.join(vscodePath, 'zerops.json');
-        fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+            const settingsPath = path.join(vscodePath, 'zerops.json');
+            const content = JSON.stringify(settings, null, 2);
+            
+            await fs.promises.writeFile(settingsPath, content);
+            this.projectSettingsCache = settings;
+            this.lastSettingsFetch = Date.now();
+        } catch (error) {
+            console.error('Failed to save project settings:', error);
+            throw new Error(`Failed to save project settings: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
     }
 
     static async loadProjectSettings(): Promise<ProjectSettings> {
-        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        if (!workspaceRoot) {
+        try {
+            const now = Date.now();
+            if (this.projectSettingsCache !== null && (now - this.lastSettingsFetch) < this.SETTINGS_CACHE_TTL) {
+                return this.projectSettingsCache;
+            }
+
+            const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            if (!workspaceRoot) {
+                return {};
+            }
+
+            const settingsPath = path.join(workspaceRoot, '.vscode', 'zerops.json');
+            
+            try {
+                if (fs.existsSync(settingsPath)) {
+                    const content = fs.readFileSync(settingsPath, 'utf-8');
+                    const settings = JSON.parse(content) as ProjectSettings;
+                    this.projectSettingsCache = settings;
+                    this.lastSettingsFetch = now;
+                    return settings;
+                }
+            } catch (error) {
+                console.error('Failed to load project settings:', error);
+                if (this.projectSettingsCache) {
+                    console.log('Returning cached settings due to error');
+                    return this.projectSettingsCache;
+                }
+            }
+            
+            return {};
+        } catch (error) {
+            console.error('Error in loadProjectSettings:', error);
+            if (this.projectSettingsCache) {
+                return this.projectSettingsCache;
+            }
             return {};
         }
-
-        const settingsPath = path.join(workspaceRoot, '.vscode', 'zerops.json');
-        
-        try {
-            if (fs.existsSync(settingsPath)) {
-                const content = fs.readFileSync(settingsPath, 'utf-8');
-                return JSON.parse(content) as ProjectSettings;
-            }
-        } catch (error) {
-            console.error('Failed to load project settings:', error);
-        }
-        
-        return {};
     }
 
     static async checkCliInstalled(): Promise<boolean> {
@@ -156,18 +201,36 @@ export class CliService {
             const { stdout } = await this.executeCommand('version');
             const currentVersion = stdout.trim();
             
-            const response = await fetch('https://api.github.com/repos/zeropsio/zcli/releases/latest');
-            const data = await response.json();
-            const latestVersion = data.tag_name.replace('v', '');
-            
-            return {
-                current: currentVersion,
-                latest: latestVersion,
-                needsUpdate: currentVersion !== latestVersion
-            };
-        } catch (error) {
+            try {
+                const response = await axios.get('https://api.github.com/repos/zeropsio/zcli/releases/latest', {
+                    timeout: 10000 // 10 second timeout
+                });
+                
+                const latestVersion = response.data.tag_name.replace('v', '');
+                
+                return {
+                    current: currentVersion,
+                    latest: latestVersion,
+                    needsUpdate: currentVersion !== latestVersion
+                };
+            } catch (error: unknown) {
+                if (axios.isAxiosError(error)) {
+                    if (error.code === 'ECONNABORTED') {
+                        throw new Error('Version check timed out. Please check your internet connection.');
+                    }
+                    throw new Error(`GitHub API error: ${error.message}`);
+                }
+                throw error;
+            }
+        } catch (error: unknown) {
             console.error('Failed to check zcli version:', error);
-            throw error;
+            if (error instanceof Error) {
+                if (error.message.includes('Canceled')) {
+                    throw new Error('Version check was canceled. Please try again.');
+                }
+                throw new Error(`Failed to check zcli version: ${error.message}`);
+            }
+            throw new Error('Failed to check zcli version: Unknown error');
         }
     }
 
@@ -373,11 +436,16 @@ export class CliService {
                 this.zeropsTerminal = existingZeropsTerminal;
             } else {
                 console.log('Creating new Zerops terminal');
-                this.zeropsTerminal = vscode.window.createTerminal('Zerops');
+                this.zeropsTerminal = vscode.window.createTerminal({
+                    name: 'Zerops',
+                    shellPath: process.platform === 'win32' ? 'powershell.exe' : '/bin/bash',
+                    shellArgs: process.platform === 'win32' ? ['-NoProfile'] : ['-l']
+                });
             }
             
             vscode.window.onDidCloseTerminal(terminal => {
                 if (terminal === this.zeropsTerminal) {
+                    console.log('Zerops terminal closed');
                     this.zeropsTerminal = null;
                 }
             });
@@ -455,7 +523,8 @@ export class CliService {
     
     static async listProjects(useCache: boolean = true): Promise<{id: string, name: string}[]> {
         try {
-            if (useCache && this.projectsCache !== null) {
+            const now = Date.now();
+            if (useCache && this.projectsCache !== null && (now - this.lastProjectsFetch) < this.CACHE_TTL) {
                 return this.projectsCache;
             }
             
@@ -478,15 +547,26 @@ export class CliService {
             }
             
             this.projectsCache = projects;
+            this.lastProjectsFetch = now;
             
             return projects;
         } catch (error) {
             console.error('Failed to list projects:', error);
-            throw error;
+            if (this.projectsCache) {
+                console.log('Returning cached projects due to error');
+                return this.projectsCache;
+            }
+            throw new Error(`Failed to list projects: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
     
     static clearProjectsCache() {
         this.projectsCache = null;
+        this.lastProjectsFetch = 0;
+    }
+
+    static clearSettingsCache() {
+        this.projectSettingsCache = null;
+        this.lastSettingsFetch = 0;
     }
 } 
