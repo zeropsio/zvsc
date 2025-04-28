@@ -337,10 +337,10 @@ export async function activate(context: vscode.ExtensionContext) {
                         else if (selected.action === 'initConfigurations') {
                             try {
                                 const configOptions = [
-                                    { label: '$(file-code) Init zerops.yml', action: 'initZYml', description: 'Initializes a zerops.yml file in root' },
-                                    { label: '$(file-code) Init zerops-project-import.yml', action: 'initZYmlImport', description: 'Initializes a zerops-project-import.yml file in root' },
-                                    { label: '$(search) Scan Project for Framework', action: 'detectFramework', description: 'Scan project and generate zerops.yml' },
-                                    { label: '$(file-add) Setup zerops.yml from scratch', action: 'setupYamlFromScratch', description: 'Create a zerops.yml file by selecting options' },
+                                    { label: '$(file-code) Init basic zerops.yml', action: 'initZYml', description: 'Initializes a basic zerops.yml file in root' },
+                                    { label: '$(file-code) Init basic zerops-project-import.yml', action: 'initZYmlImport', description: 'Initializes a basic zerops-project-import.yml file in root' },
+                                    { label: '$(search) Scan & Setup Zerops.yml', action: 'detectFramework', description: 'Scan project and generate zerops.yml' },
+                                    { label: '$(file-add) Setup zerops.yml from scratch(DIY)', action: 'setupYamlFromScratch', description: 'Create a zerops.yml file by selecting options' },
                                     { label: '$(github) Add GitHub Workflow', action: 'initGitHubWorkflow', description: 'Adds GitHub workflow for automated deployments' },
                                     { label: '$(arrow-left) Go Back', action: 'goBack', description: 'Return to main menu', keepMenuOpen: false }
                                 ];

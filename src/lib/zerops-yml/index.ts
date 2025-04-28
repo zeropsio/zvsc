@@ -11,6 +11,7 @@ import { golangYml, ginYml, echoYml, fiberYml, gorillaYml, golangPattern, golang
 import { pythonYml, djangoYml, flaskYml, fastApiYml, pyramidYml, pythonPattern, pythonMetadata, detectPythonType } from './python/index';
 import { javaYml, springYml, springBootYml, quarkusYml, micronautYml, javaPattern, javaMetadata, detectJavaType } from './java/index';
 import { FrameworkPattern, FrameworkMetadata, SupportedFramework, FrameworkDetectionResult } from '../framework-types';
+import { phpYml, laravelYml, symfonyYml, wordpressYml, phpPattern, laravelPattern, symfonyPattern, wordpressPattern, phpMetadata, laravelMetadata, symfonyMetadata, wordpressMetadata, detectPhpType } from './php/index';
 
 export { SupportedFramework, FrameworkPattern, FrameworkMetadata, FrameworkDetectionResult };
 
@@ -24,7 +25,11 @@ export const frameworkPatterns: Record<string, FrameworkPattern> = {
     javascript: javascriptPattern,
     golang: golangPattern,
     python: pythonPattern,
-    java: javaPattern
+    java: javaPattern,
+    php: phpPattern,
+    laravel: laravelPattern,
+    symfony: symfonyPattern,
+    wordpress: wordpressPattern
 };
 
 export const frameworkMetadata: Record<string, FrameworkMetadata> = {
@@ -37,7 +42,11 @@ export const frameworkMetadata: Record<string, FrameworkMetadata> = {
     javascript: javascriptMetadata,
     golang: golangMetadata,
     python: pythonMetadata,
-    java: javaMetadata
+    java: javaMetadata,
+    php: phpMetadata,
+    laravel: laravelMetadata,
+    symfony: symfonyMetadata,
+    wordpress: wordpressMetadata
 };
 
 export const frameworkDetectors = {
@@ -50,7 +59,8 @@ export const frameworkDetectors = {
     javascript: { detectType: detectJavaScriptType },
     golang: { detectType: detectGolangType },
     python: { detectType: detectPythonType },
-    java: { detectType: detectJavaType }
+    java: { detectType: detectJavaType },
+    php: { detectType: detectPhpType }
 };
 
 export const frameworkYamls = {
@@ -82,7 +92,11 @@ export const frameworkYamls = {
     spring: springYml,
     springboot: springBootYml,
     quarkus: quarkusYml,
-    micronaut: micronautYml
+    micronaut: micronautYml,
+    php: phpYml,
+    laravel: laravelYml,
+    symfony: symfonyYml,
+    wordpress: wordpressYml
 };
 
 export function getYamlForFramework(
@@ -148,6 +162,14 @@ export function getYamlForFramework(
         
         case 'nestjs': {
             return nestjsYml;
+        }
+        
+        case 'php': {
+            const phpType = detectPhpType(directoryPath);
+            if (phpType.hasLaravel) return laravelYml;
+            if (phpType.hasSymfony) return symfonyYml;
+            if (phpType.hasWordPress) return wordpressYml;
+            return phpYml;
         }
         
         default:

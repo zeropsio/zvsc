@@ -21,7 +21,12 @@ export type SupportedFramework =
     'nextjs' | 'astro' | 'react' | 'vue' | 'nodejs' | 'javascript' | 'deno' | 'nestjs' |
     'golang' | 'gin' | 'echo' | 'fiber' | 
     'python' | 'django' | 'flask' | 'fastapi' |
-    'java' | 'spring' | 'springboot' | 'quarkus' | 'micronaut';
+    'java' | 'spring' | 'springboot' | 'quarkus' | 'micronaut' |
+    'php' | 'laravel' | 'symfony' | 'wordpress' |
+    'ruby' | 'rails' |
+    'dotnet' | 'csharp' | 'aspnet' |
+    'rust' | 'rocket' |
+    ;
 
 export interface FrameworkDetectionResult {
     detected: boolean;

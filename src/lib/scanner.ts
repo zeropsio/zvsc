@@ -13,6 +13,9 @@ export interface ScanResult {
 }
 
 export class Scanner {
+    private static CONFIDENCE_THRESHOLD = 70;
+    private static DEEP_SCAN_LIMIT = 10;
+    
     /**
      * Scans a directory to detect which framework is being used
      * @param directoryPath The path to scan
@@ -21,19 +24,82 @@ export class Scanner {
     public static async scanDirectory(directoryPath: string): Promise<ScanResult[]> {
         const results: ScanResult[] = [];
         
-        for (const [framework, pattern] of Object.entries(frameworkPatterns)) {
-            if (!Scanner.isSupportedFramework(framework)) {
-                continue;
+        try {
+            // First try to detect based on explicit framework markers
+            for (const [framework, pattern] of Object.entries(frameworkPatterns)) {
+                if (!Scanner.isSupportedFramework(framework)) {
+                    continue;
+                }
+                const result = await Scanner.checkFramework(directoryPath, framework as SupportedFramework, pattern as FrameworkPattern);
+                if (result.certainty > 0) {
+                    results.push(result);
+                }
             }
-            const result = await Scanner.checkFramework(directoryPath, framework as SupportedFramework, pattern as FrameworkPattern);
-            if (result.certainty > 0) {
-                results.push(result);
-            }
+            
+            // Add deep recursive scanning for large projects with nested structures
+            await Scanner.deepScan(directoryPath, results);
+            
+            results.sort((a, b) => b.certainty - a.certainty);
+            
+            return results;
+        } catch (error) {
+            console.error("Error scanning directory:", error);
+            return results;
         }
+    }
+    
+    /**
+     * Performs a deep scan for projects with nested structures
+     * @param directoryPath The root directory to scan
+     * @param results The current results array to append to
+     */
+    private static async deepScan(directoryPath: string, results: ScanResult[], depth = 0): Promise<void> {
+        if (depth >= Scanner.DEEP_SCAN_LIMIT) return;
         
-        results.sort((a, b) => b.certainty - a.certainty);
-        
-        return results;
+        try {
+            const items = fs.readdirSync(directoryPath);
+            
+            // Skip node_modules, .git and other common non-source dirs
+            const skipDirs = ['node_modules', '.git', 'dist', 'build', '.vscode', '.idea'];
+            
+            for (const item of items) {
+                const itemPath = path.join(directoryPath, item);
+                
+                if (fs.statSync(itemPath).isDirectory() && !skipDirs.includes(item)) {
+                    // Check if this subdirectory contains its own project
+                    const packageJsonPath = path.join(itemPath, 'package.json');
+                    const goModPath = path.join(itemPath, 'go.mod');
+                    const pyRequirementsPath = path.join(itemPath, 'requirements.txt');
+                    const pomXmlPath = path.join(itemPath, 'pom.xml');
+                    
+                    const isSubProject = fs.existsSync(packageJsonPath) || 
+                                         fs.existsSync(goModPath) || 
+                                         fs.existsSync(pyRequirementsPath) ||
+                                         fs.existsSync(pomXmlPath);
+                    
+                    if (isSubProject) {
+                        // We found a sub-project, scan it
+                        for (const [framework, pattern] of Object.entries(frameworkPatterns)) {
+                            if (!Scanner.isSupportedFramework(framework)) {
+                                continue;
+                            }
+                            const result = await Scanner.checkFramework(itemPath, framework as SupportedFramework, pattern as FrameworkPattern);
+                            
+                            if (result.certainty > 0) {
+                                // Add subdirectory path to the framework name to distinguish it
+                                result.detectedItems.push(`Found in subdirectory: ${item}`);
+                                results.push(result);
+                            }
+                        }
+                    }
+                    
+                    // Continue recursion
+                    await Scanner.deepScan(itemPath, results, depth + 1);
+                }
+            }
+        } catch (error) {
+            console.error(`Error in deep scan at ${directoryPath}:`, error);
+        }
     }
     
     /**
@@ -47,6 +113,7 @@ export class Scanner {
         const detectedItems: string[] = [];
         let certainty = 0;
         
+        // Check required files
         if (pattern.requiredFiles) {
             let foundFiles = 0;
             for (const file of pattern.requiredFiles) {
@@ -62,6 +129,7 @@ export class Scanner {
             }
         }
         
+        // Check required directories
         if (pattern.requiredDirs) {
             let foundDirs = 0;
             for (const dir of pattern.requiredDirs) {
@@ -77,6 +145,7 @@ export class Scanner {
             }
         }
         
+        // Check content patterns (strings inside files)
         if (pattern.contentPatterns) {
             let matchedPatterns = 0;
             let totalPatterns = 0;
@@ -101,6 +170,7 @@ export class Scanner {
             }
         }
         
+        // Check dependencies in package.json
         if (pattern.dependencies) {
             const packageJsonPath = path.join(directoryPath, 'package.json');
             
@@ -128,10 +198,12 @@ export class Scanner {
                         certainty += (matchedDeps / totalDeps) * 30;
                     }
                 } catch (error) {
+                    console.error(`Error parsing package.json at ${packageJsonPath}:`, error);
                 }
             }
         }
         
+        // Apply custom detector function if available
         if (framework in frameworkDetectors && frameworkDetectors[framework as keyof typeof frameworkDetectors]) {
             try {
                 const detector = frameworkDetectors[framework as keyof typeof frameworkDetectors];
@@ -144,12 +216,18 @@ export class Scanner {
                     }
                 }
             } catch (error) {
+                console.error(`Error in custom detector for ${framework}:`, error);
             }
+        }
+        
+        // Apply priority boost if defined
+        if (pattern.priority) {
+            certainty += pattern.priority;
         }
         
         return {
             framework,
-            certainty: Math.min(certainty, 100),
+            certainty: Math.min(certainty, 100), // Cap at 100%
             detectedItems,
             metadata: frameworkMetadata[framework as keyof typeof frameworkMetadata] as FrameworkMetadata
         };
@@ -163,27 +241,14 @@ export class Scanner {
             'nextjs', 'astro', 'react', 'vue', 'nodejs', 'javascript', 'deno', 'nestjs',
             'golang', 'gin', 'echo', 'fiber',
             'python', 'django', 'flask', 'fastapi',
-            'java', 'spring', 'springboot', 'quarkus', 'micronaut'
+            'java', 'spring', 'springboot', 'quarkus', 'micronaut',
+            // Newly added frameworks
+            'php', 'laravel', 'symfony', 'wordpress',
+            'ruby', 'rails',
+            'dotnet', 'csharp', 'aspnet',
+            'rust', 'actix', 'rocket',
+            'kotlin', 'ktor'
         ].includes(framework);
-    }
-    
-    /**
-     * Generates a zerops.yml file for the detected framework
-     * @param framework The detected framework
-     * @param outputPath The path to write the zerops.yml file
-     * @param directoryPath The path of the project directory
-     * @returns true if successful, false otherwise
-     */
-    public static generateZeropsYml(framework: SupportedFramework, outputPath: string, directoryPath: string): boolean {
-        try {
-            const yml = getYamlForFramework(framework, directoryPath);
-            
-            fs.writeFileSync(outputPath, yml);
-            return true;
-        } catch (error) {
-            console.error('Error generating zerops.yml:', error);
-            return false;
-        }
     }
     
     /**
@@ -265,32 +330,7 @@ export class Scanner {
                     return 'Detected as Vue.js application';
                 }
                 
-                case 'nodejs': {
-                    if ('nodejs' in frameworkDetectors && 
-                        'detectType' in frameworkDetectors.nodejs &&
-                        typeof frameworkDetectors.nodejs.detectType === 'function') {
-                        const nodeType = frameworkDetectors.nodejs.detectType(directoryPath);
-                        let description = 'Detected as Node.js application';
-                        if (nodeType.hasExpress) description += ' using Express';
-                        else if (nodeType.hasKoa) description += ' using Koa';
-                        if (nodeType.hasTypeScript) description += ' with TypeScript';
-                        return description;
-                    }
-                    return 'Detected as Node.js application';
-                }
-                
-                case 'nestjs': {
-                    if ('nestjs' in frameworkDetectors && 
-                        'detectConfig' in frameworkDetectors.nestjs &&
-                        typeof frameworkDetectors.nestjs.detectConfig === 'function') {
-                        const nestConfig = frameworkDetectors.nestjs.detectConfig(directoryPath);
-                        let description = 'Detected as NestJS application';
-                        if (nestConfig.hasGraphQL) description += ' with GraphQL';
-                        if (nestConfig.hasMicroservices) description += ' with Microservices';
-                        return description;
-                    }
-                    return 'Detected as NestJS application';
-                }
+                // Add more specific framework info cases
                 
                 default:
                     return '';
@@ -298,6 +338,37 @@ export class Scanner {
         } catch (error) {
             console.error(`Error getting framework info for ${framework}:`, error);
             return '';
+        }
+    }
+    
+    /**
+     * Generates a zerops.yml file for the detected framework
+     * @param framework The detected framework
+     * @param outputPath The path to write the zerops.yml file
+     * @param directoryPath The path of the project directory
+     * @returns true if successful, false otherwise
+     */
+    public static generateZeropsYml(framework: SupportedFramework, outputPath: string, directoryPath: string): boolean {
+        try {
+            const yml = getYamlForFramework(framework, directoryPath);
+            
+            // Create the .vscode folder if it doesn't exist
+            const vscodeDir = path.dirname(outputPath);
+            if (!fs.existsSync(vscodeDir) && vscodeDir.includes('.vscode')) {
+                fs.mkdirSync(vscodeDir, { recursive: true });
+            }
+            
+            fs.writeFileSync(outputPath, yml);
+            
+            // Open the file in the editor
+            vscode.workspace.openTextDocument(outputPath).then(doc => {
+                vscode.window.showTextDocument(doc);
+            });
+            
+            return true;
+        } catch (error) {
+            console.error('Error generating zerops.yml:', error);
+            return false;
         }
     }
     
@@ -327,6 +398,43 @@ export class Scanner {
             return;
         }
         
+        const topResult = results[0];
+        const hasHighConfidence = topResult.certainty >= Scanner.CONFIDENCE_THRESHOLD;
+        
+        // If the top result has high confidence, ask if user wants to use it
+        // Otherwise, show all options sorted by confidence
+        if (hasHighConfidence) {
+            const useTopResult = await vscode.window.showInformationMessage(
+                `Detected ${topResult.metadata.name} with ${Math.round(topResult.certainty)}% confidence. Use this configuration?`,
+                'Yes', 'Show All Options', 'Cancel'
+            );
+            
+            if (useTopResult === 'Yes') {
+                const outputPath = path.join(workspacePath, 'zerops.yml');
+                
+                if (fs.existsSync(outputPath)) {
+                    const overwrite = await vscode.window.showWarningMessage(
+                        'zerops.yml already exists. Do you want to overwrite it?',
+                        'Yes', 'No'
+                    );
+                    
+                    if (overwrite !== 'Yes') {
+                        return;
+                    }
+                }
+                
+                if (Scanner.generateZeropsYml(topResult.framework, outputPath, workspacePath)) {
+                    vscode.window.showInformationMessage(`Generated zerops.yml for ${topResult.metadata.name}`);
+                } else {
+                    vscode.window.showErrorMessage('Failed to generate zerops.yml');
+                }
+                return;
+            } else if (useTopResult === 'Cancel') {
+                return;
+            }
+            // If "Show All Options", continue to show all options below
+        }
+        
         const items = results.map(result => {
             const frameworkInfo = Scanner.getFrameworkInfo(result.framework, workspacePath);
             
@@ -338,6 +446,7 @@ export class Scanner {
             };
         });
         
+        // Always add generic options
         items.push({
             label: 'Generic Node.js',
             description: 'Basic Node.js configuration',
@@ -345,33 +454,49 @@ export class Scanner {
             framework: 'nodejs' as SupportedFramework
         });
         
+        // Add option for custom configuration
+        items.push({
+            label: 'Custom Configuration',
+            description: 'Create a custom configuration',
+            detail: 'Start with a template and customize',
+            framework: 'custom configuration' as any as SupportedFramework
+        });
+        
         const selected = await vscode.window.showQuickPick(items, {
             placeHolder: 'Select framework for zerops.yml generation',
             ignoreFocusOut: true
         });
         
-        if (selected) {
-            const outputPath = path.join(workspacePath, 'zerops.yml');
+        if (!selected) {
+            return;
+        }
+        
+        if (selected.framework === 'custom configuration' as any as SupportedFramework) {
+            // TODO: Implement custom configuration flow
+            vscode.window.showInformationMessage('Custom configuration option will be implemented in a future update.');
+            return;
+        }
+        
+        const outputPath = path.join(workspacePath, 'zerops.yml');
+        
+        if (fs.existsSync(outputPath)) {
+            const overwrite = await vscode.window.showWarningMessage(
+                'zerops.yml already exists. Do you want to overwrite it?',
+                'Yes', 'No'
+            );
             
-            if (fs.existsSync(outputPath)) {
-                const overwrite = await vscode.window.showWarningMessage(
-                    'zerops.yml already exists. Do you want to overwrite it?',
-                    'Yes', 'No'
-                );
-                
-                if (overwrite !== 'Yes') {
-                    return;
-                }
+            if (overwrite !== 'Yes') {
+                return;
             }
+        }
+        
+        if (Scanner.generateZeropsYml(selected.framework as SupportedFramework, outputPath, workspacePath)) {
+            vscode.window.showInformationMessage(`Generated zerops.yml for ${selected.label.split(' ')[0]}`);
             
-            if (Scanner.generateZeropsYml(selected.framework as SupportedFramework, outputPath, workspacePath)) {
-                vscode.window.showInformationMessage(`Generated zerops.yml for ${selected.label.split(' ')[0]}`);
-                
-                const doc = await vscode.workspace.openTextDocument(outputPath);
-                await vscode.window.showTextDocument(doc);
-            } else {
-                vscode.window.showErrorMessage('Failed to generate zerops.yml');
-            }
+            const doc = await vscode.workspace.openTextDocument(outputPath);
+            await vscode.window.showTextDocument(doc);
+        } else {
+            vscode.window.showErrorMessage('Failed to generate zerops.yml');
         }
     }
     
@@ -386,7 +511,33 @@ export class Scanner {
         }
         
         const currentWorkspace = workspaceFolders[0].uri.fsPath;
-        const { scanProjectForFramework } = require('../init');
-        await scanProjectForFramework(currentWorkspace);
+        
+        try {
+            vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: "Scanning project...",
+                cancellable: false
+            }, async (progress) => {
+                progress.report({ increment: 0, message: "Analyzing project structure..." });
+                
+                const results = await Scanner.scanDirectory(currentWorkspace);
+                
+                progress.report({ increment: 50, message: "Detecting frameworks..." });
+                
+                if (results.length === 0) {
+                    vscode.window.showInformationMessage('No supported frameworks detected in the project.');
+                    return;
+                }
+                
+                progress.report({ increment: 90, message: "Framework detected, creating configuration..." });
+                
+                await Scanner.promptAndGenerateConfig(results, currentWorkspace);
+                
+                progress.report({ increment: 100, message: "Complete" });
+            });
+        } catch (error) {
+            console.error('Error scanning project for framework:', error);
+            vscode.window.showErrorMessage('Failed to scan project for framework');
+        }
     }
 }
