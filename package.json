@@ -113,6 +113,12 @@
                 "command": "zerops.toggleMinimalStatusBar",
                 "title": "Zerops: Toggle Minimal Status Bar"
             }
+        ],
+        "yamlValidation": [
+            {
+                "fileMatch": ["zerops.yml", "zerops.yaml"],
+                "url": "./zerops-yml-schema.json"
+            }
         ]
     },
     "dependencies": {

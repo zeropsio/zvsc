@@ -1,0 +1,780 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://api.app-prg1.zerops.io/api/rest/public/settings/zerops-yaml-json-schema.json",
+  "properties": {
+    "zerops": {
+      "items": {
+        "properties": {
+          "setup": {
+            "type": "string",
+            "description": "The first element setup contains the hostname of your service. A runtime service with the same hostname must exist in Zerops. Zerops supports the definition of multiple runtime services in a single zerops.yml. This is useful when you use a monorepo. Just add multiple setup elements in your zerops.yml."
+          },
+          "build": {
+            "properties": {
+              "os": {
+                "type": "string",
+                "enum": [
+                  "",
+                  "alpine",
+                  "ubuntu"
+                ],
+                "description": "Sets the operating system for the runtime environment."
+              },
+              "base": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "22.04",
+                      "24.04",
+                      "3.17",
+                      "3.18",
+                      "3.19",
+                      "3.20",
+                      "3.21",
+                      "alpine@3.17",
+                      "alpine@3.18",
+                      "alpine@3.19",
+                      "alpine@3.20",
+                      "alpine@3.21",
+                      "alpine@latest",
+                      "bun@1.1",
+                      "bun@1.1.34",
+                      "bun@1.2",
+                      "bun@1.2.2",
+                      "bun@canary",
+                      "bun@latest",
+                      "bun@nightly",
+                      "deno@1",
+                      "deno@1.45.5",
+                      "deno@2.0.0",
+                      "deno@latest",
+                      "dotnet@6",
+                      "dotnet@7",
+                      "dotnet@8",
+                      "dotnet@9",
+                      "dotnet@latest",
+                      "elixir@1",
+                      "elixir@1.16",
+                      "elixir@1.16.2",
+                      "elixir@latest",
+                      "gleam@1",
+                      "gleam@1.5",
+                      "gleam@1.5.1",
+                      "gleam@latest",
+                      "go@1",
+                      "go@1.22",
+                      "go@latest",
+                      "golang@1",
+                      "golang@latest",
+                      "java@17",
+                      "java@21",
+                      "java@latest",
+                      "nodejs@18",
+                      "nodejs@20",
+                      "nodejs@22",
+                      "nodejs@latest",
+                      "php@8.1",
+                      "php@8.3",
+                      "php@8.4",
+                      "php@latest",
+                      "python@3.11",
+                      "python@3.12",
+                      "python@latest",
+                      "ruby@3.2",
+                      "ruby@3.3",
+                      "ruby@3.4",
+                      "rust@1",
+                      "rust@1.78",
+                      "rust@1.80",
+                      "rust@1.86",
+                      "rust@latest",
+                      "rust@nightly",
+                      "ubuntu@22.04",
+                      "ubuntu@24.04",
+                      "ubuntu@latest"
+                    ]
+                  },
+                  {
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "22.04",
+                        "24.04",
+                        "3.17",
+                        "3.18",
+                        "3.19",
+                        "3.20",
+                        "3.21",
+                        "alpine@3.17",
+                        "alpine@3.18",
+                        "alpine@3.19",
+                        "alpine@3.20",
+                        "alpine@3.21",
+                        "alpine@latest",
+                        "bun@1.1",
+                        "bun@1.1.34",
+                        "bun@1.2",
+                        "bun@1.2.2",
+                        "bun@canary",
+                        "bun@latest",
+                        "bun@nightly",
+                        "deno@1",
+                        "deno@1.45.5",
+                        "deno@2.0.0",
+                        "deno@latest",
+                        "dotnet@6",
+                        "dotnet@7",
+                        "dotnet@8",
+                        "dotnet@9",
+                        "dotnet@latest",
+                        "elixir@1",
+                        "elixir@1.16",
+                        "elixir@1.16.2",
+                        "elixir@latest",
+                        "gleam@1",
+                        "gleam@1.5",
+                        "gleam@1.5.1",
+                        "gleam@latest",
+                        "go@1",
+                        "go@1.22",
+                        "go@latest",
+                        "golang@1",
+                        "golang@latest",
+                        "java@17",
+                        "java@21",
+                        "java@latest",
+                        "nodejs@18",
+                        "nodejs@20",
+                        "nodejs@22",
+                        "nodejs@latest",
+                        "php@8.1",
+                        "php@8.3",
+                        "php@8.4",
+                        "php@latest",
+                        "python@3.11",
+                        "python@3.12",
+                        "python@latest",
+                        "ruby@3.2",
+                        "ruby@3.3",
+                        "ruby@3.4",
+                        "rust@1",
+                        "rust@1.78",
+                        "rust@1.80",
+                        "rust@1.86",
+                        "rust@latest",
+                        "rust@nightly",
+                        "ubuntu@22.04",
+                        "ubuntu@24.04",
+                        "ubuntu@latest"
+                      ]
+                    },
+                    "type": "array"
+                  }
+                ],
+                "description": "Sets the base technology for the build environment. If you need to install more technologies to the build environment, set multiple values as a yaml array."
+              },
+              "prepareCommands": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "description": "Customises the build environment by installing additional dependencies or tools to the base build environment."
+              },
+              "buildCommands": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "description": "Defines build commands. Zerops triggers each command in the defined order in a dedicated build container."
+              },
+              "deploy": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                ],
+                "deprecated": true
+              },
+              "deployFiles": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                ],
+                "description": "Selects which files or folders will be deployed after the build has successfully finished. To filter out specific files or folders, use .deployignore file."
+              },
+              "cache": {
+                "oneOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                ],
+                "description": "Defines which files or folders will be cached for the next build."
+              },
+              "addToRunPrepare": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                ],
+                "description": "Defines what files or folders will be copied from the build container to the prepare runtime container. The prepare runtime container is used to customize your runtime environment."
+              },
+              "envVariables": {
+                "additionalProperties": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                },
+                "type": "object",
+                "description": "Defines the environment variables for the build environment."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "deployFiles"
+            ],
+            "description": "Build pipeline configuration."
+          },
+          "deploy": {
+            "properties": {
+              "readinessCheck": {
+                "properties": {
+                  "httpGet": {
+                    "properties": {
+                      "scheme": {
+                        "type": "string",
+                        "description": "The readiness check is triggered from inside of your runtime container so no https is required. If your application requires a https request, set scheme: https"
+                      },
+                      "host": {
+                        "type": "string",
+                        "description": "The readiness check is triggered from inside of your runtime container so it always uses the localhost (127.0.0.1). If you need to add a host to the request header, specify it in the host attribute."
+                      },
+                      "port": {
+                        "type": "integer",
+                        "description": "Defines the port of the HTTP GET request."
+                      },
+                      "path": {
+                        "type": "string",
+                        "description": "Defines the URL path of the HTTP GET request."
+                      }
+                    },
+                    "additionalProperties": false,
+                    "type": "object",
+                    "required": [
+                      "port",
+                      "path"
+                    ],
+                    "description": "Configures the readiness check to request a local URL using a http GET method."
+                  },
+                  "exec": {
+                    "properties": {
+                      "command": {
+                        "type": "string",
+                        "description": "Defines a local command to be run. The command has access to the same environment variables. A single string is required. If you need to run multiple commands create a shell script or, use a multiline format as in the example below."
+                      }
+                    },
+                    "additionalProperties": false,
+                    "type": "object",
+                    "required": [
+                      "command"
+                    ],
+                    "description": "Configures the readiness check to run a local command."
+                  },
+                  "failureTimeout": {
+                    "type": "integer",
+                    "description": "Time until container is marked as failed."
+                  },
+                  "retryPeriod": {
+                    "type": "integer",
+                    "description": "Time interval between readiness check attempts."
+                  }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "description": "Defines a readiness check. Requires either httpGet object or exec object."
+              },
+              "temporaryShutdown": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "Deploy configuration."
+          },
+          "run": {
+            "properties": {
+              "initCommands": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "description": "Defines one or more commands to be run each time a new runtime container is started or a container is restarted."
+              },
+              "prepareCommands": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "description": "Customises the runtime environment by installing additional dependencies or tools to the base runtime environment."
+              },
+              "os": {
+                "type": "string",
+                "enum": [
+                  "",
+                  "alpine",
+                  "ubuntu"
+                ],
+                "description": "Sets the operating system for the runtime environment."
+              },
+              "base": {
+                "type": "string",
+                "enum": [
+                  "22.04",
+                  "24.04",
+                  "3.17",
+                  "3.18",
+                  "3.19",
+                  "3.20",
+                  "3.21",
+                  "alpine@3.17",
+                  "alpine@3.18",
+                  "alpine@3.19",
+                  "alpine@3.20",
+                  "alpine@3.21",
+                  "alpine@latest",
+                  "bun@1.1",
+                  "bun@1.1.34",
+                  "bun@1.2",
+                  "bun@1.2.2",
+                  "bun@canary",
+                  "bun@latest",
+                  "bun@nightly",
+                  "deno@1",
+                  "deno@1.45.5",
+                  "deno@2.0.0",
+                  "deno@latest",
+                  "docker@26",
+                  "docker@26.1",
+                  "docker@26.1.5",
+                  "docker@latest",
+                  "dotnet@6",
+                  "dotnet@7",
+                  "dotnet@8",
+                  "dotnet@9",
+                  "dotnet@latest",
+                  "elixir@1",
+                  "elixir@1.16",
+                  "elixir@1.16.2",
+                  "elixir@latest",
+                  "gleam@1",
+                  "gleam@1.5",
+                  "gleam@1.5.1",
+                  "gleam@latest",
+                  "go@1",
+                  "go@1.22",
+                  "go@latest",
+                  "golang@1",
+                  "golang@latest",
+                  "java@17",
+                  "java@21",
+                  "java@latest",
+                  "nginx@1.22",
+                  "nginx@latest",
+                  "nodejs@18",
+                  "nodejs@20",
+                  "nodejs@22",
+                  "nodejs@latest",
+                  "php-apache@8.1",
+                  "php-apache@8.3",
+                  "php-apache@8.4",
+                  "php-apache@latest",
+                  "php-nginx@8.1",
+                  "php-nginx@8.3",
+                  "php-nginx@8.4",
+                  "php-nginx@latest",
+                  "python@3.11",
+                  "python@3.12",
+                  "python@latest",
+                  "ruby@3.2",
+                  "ruby@3.3",
+                  "ruby@3.4",
+                  "ruby@latest",
+                  "runtime@latest",
+                  "rust@1",
+                  "rust@1.78",
+                  "rust@1.80",
+                  "rust@1.86",
+                  "rust@latest",
+                  "rust@nightly",
+                  "static",
+                  "static@1.0",
+                  "static@latest",
+                  "ubuntu@22.04",
+                  "ubuntu@24.04",
+                  "ubuntu@latest"
+                ],
+                "description": "Sets the base technology for the runtime environment. If you don't specify the run.base attribute, Zerops keeps the current version for your runtime."
+              },
+              "start": {
+                "type": "string",
+                "description": "Defines the start command for your application."
+              },
+              "documentRoot": {
+                "type": "string",
+                "description": "Customizes the folder that will be used as the root of the publicly accessible web server content. This attribute is available only for runtimes with webservers."
+              },
+              "siteConfigPath": {
+                "type": "string",
+                "description": "Sets the custom webserver configuration. This attribute is available only for runtimes with webservers."
+              },
+              "envReplace": {
+                "properties": {
+                  "target": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    ]
+                  },
+                  "delimiter": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                  "target",
+                  "delimiter"
+                ]
+              },
+              "healthCheck": {
+                "properties": {
+                  "httpGet": {
+                    "properties": {
+                      "scheme": {
+                        "type": "string",
+                        "description": "The readiness check is triggered from inside of your runtime container so no https is required. If your application requires a https request, set scheme: https"
+                      },
+                      "host": {
+                        "type": "string",
+                        "description": "The readiness check is triggered from inside of your runtime container so it always uses the localhost (127.0.0.1). If you need to add a host to the request header, specify it in the host attribute."
+                      },
+                      "port": {
+                        "type": "integer",
+                        "description": "Defines the port of the HTTP GET request."
+                      },
+                      "path": {
+                        "type": "string",
+                        "description": "Defines the URL path of the HTTP GET request."
+                      }
+                    },
+                    "additionalProperties": false,
+                    "type": "object",
+                    "required": [
+                      "port",
+                      "path"
+                    ],
+                    "description": "Configures the health check to request a local URL using a http GET method."
+                  },
+                  "exec": {
+                    "properties": {
+                      "command": {
+                        "type": "string",
+                        "description": "Defines a local command to be run. The command has access to the same environment variables. A single string is required. If you need to run multiple commands create a shell script or, use a multiline format as in the example below."
+                      }
+                    },
+                    "additionalProperties": false,
+                    "type": "object",
+                    "required": [
+                      "command"
+                    ],
+                    "description": "Configures the health check to run a local command."
+                  },
+                  "failureTimeout": {
+                    "type": "integer",
+                    "description": "Time until container fails after consecutive health check failures (reset by success)."
+                  },
+                  "disconnectTimeout": {
+                    "type": "integer",
+                    "description": "Time until container is disconnected and becomes publicly unavailable."
+                  },
+                  "recoveryTimeout": {
+                    "type": "integer",
+                    "description": "Time until container is connected and becomes publicly available."
+                  },
+                  "execPeriod": {
+                    "type": "integer",
+                    "description": "Time interval between health check attempts."
+                  }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "description": "Defines a health check."
+              },
+              "routing": {
+                "properties": {
+                  "root": {
+                    "type": "string"
+                  },
+                  "cors": {
+                    "type": "string",
+                    "description": "Content of default Access-Control headers (Allow-Origin, Allow-Methods, Allow-Headers and Expose-Headers), e.g. \"'*' always\""
+                  },
+                  "redirects": {
+                    "items": {
+                      "properties": {
+                        "from": {
+                          "type": "string",
+                          "description": "Relative or an absolute (defined by with http://) path to be matched against request location. May contain * at the end for regex."
+                        },
+                        "to": {
+                          "type": "string",
+                          "description": "Relative or an absolute (defined by with http://) path to redirect user to."
+                        },
+                        "status": {
+                          "type": "integer",
+                          "description": "Which HTTP status code to use for the redirect. If not set, and To and From are relative, an internal/masked redirect will be used."
+                        },
+                        "preservePath": {
+                          "type": "boolean",
+                          "description": "Whether part of the path after From should be preserved. Used to forward contents of one directory to another in non-masked redirects."
+                        },
+                        "preserveQuery": {
+                          "type": "boolean",
+                          "description": "Whether query parameters should be preserved. Used in non-masked redirects."
+                        }
+                      },
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "from",
+                        "to"
+                      ]
+                    },
+                    "type": "array"
+                  },
+                  "headers": {
+                    "items": {
+                      "properties": {
+                        "for": {
+                          "type": "string",
+                          "description": "Relative path to be matched against request location. May contain * at the end for prefix-based match."
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object",
+                          "description": "Header name as Key and raw content as Value, e.g. \"Access-Control-Allow-Origin\": \"'*' always\""
+                        }
+                      },
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "for",
+                        "values"
+                      ]
+                    },
+                    "type": "array"
+                  }
+                },
+                "additionalProperties": false,
+                "type": "object"
+              },
+              "ports": {
+                "items": {
+                  "properties": {
+                    "protocol": {
+                      "type": "string",
+                      "enum": [
+                        "tcp",
+                        "udp"
+                      ],
+                      "description": "Defines the protocol. Allowed values are TCP or UDP. Default value is TCP."
+                    },
+                    "port": {
+                      "type": "integer",
+                      "description": "Defines the port number. You can set any port number between 10 and 65435. Ports outside this interval are reserved for internal Zerops systems."
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "httpSupport": {
+                      "type": "boolean",
+                      "description": "Set to true if a web server is running on the port. Zerops uses this information for the configuration of public access. True is available only in combination with the TCP protocol. Default value is false."
+                    }
+                  },
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "port"
+                  ]
+                },
+                "type": "array",
+                "description": "Specifies one or more internal ports on which your application will listen."
+              },
+              "envVariables": {
+                "additionalProperties": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                },
+                "type": "object",
+                "description": "Defines the environment variables for the runtime environment."
+              },
+              "startCommands": {
+                "items": {
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "command": {
+                      "type": "string"
+                    },
+                    "workingDir": {
+                      "type": "string"
+                    },
+                    "initCommands": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array",
+                      "description": "Defines one or more commands to be run each time a new runtime container is started or a container is restarted."
+                    }
+                  },
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "command"
+                  ]
+                },
+                "type": "array",
+                "description": "Defines the start commands for the runtime environment."
+              },
+              "crontab": {
+                "items": {
+                  "properties": {
+                    "timing": {
+                      "type": "string",
+                      "description": "Defines when the cron job runs in standard cron format."
+                    },
+                    "command": {
+                      "type": "string",
+                      "description": "Specifies the shell command to run at the scheduled time."
+                    },
+                    "workingDir": {
+                      "type": "string",
+                      "description": "The directory where the command will be executed (default: /var/www)"
+                    },
+                    "allContainers": {
+                      "type": "boolean",
+                      "description": "If set to true, the job runs on all containers; otherwise, it runs on a single container (default: false)"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "timing",
+                    "command",
+                    "allContainers"
+                  ]
+                },
+                "type": "array",
+                "description": "A list of cron jobs with their respective schedule (timing), the command to run (command), and additional options like allContainers and workingDir."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "Runtime configuration."
+          },
+          "extends": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "setup"
+        ]
+      },
+      "type": "array",
+      "description": "The top-level element is always zerops."
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+    "zerops"
+  ]
+}

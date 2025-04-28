@@ -82,13 +82,10 @@ export async function scanProjectForFramework(workspacePath: string): Promise<vo
             return;
         }
         
-        // Sort results by certainty
         results.sort((a, b) => b.certainty - a.certainty);
         
-        // Get the most likely framework
         const topResult = results[0];
         
-        // Generate the zerops.yml file
         const zeropsYmlPath = path.join(workspacePath, 'zerops.yml');
         const success = Scanner.generateZeropsYml(topResult.framework, zeropsYmlPath, workspacePath);
         

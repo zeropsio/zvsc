@@ -8,7 +8,10 @@ import { ZEROPS_YML, IMPORT_YML } from './init';
 import { Scanner } from './lib/scanner';
 import { GitHubWorkflowService } from './services/githubWorkflowService';
 import { ProjectSettings, loadProjectSettings } from './utils/settings';
+import { YamlSchemaService } from './services/yamlSchemaService';
 import fetch from 'node-fetch';
+import { YamlGeneratorService } from './services/yamlGeneratorService';
+const yaml = require('js-yaml');
 
 let zeropsStatusBarItem: vscode.StatusBarItem;
 let pushStatusBarItem: vscode.StatusBarItem;
@@ -17,6 +20,7 @@ let serviceStatusBarItem: vscode.StatusBarItem;
 let guiStatusBarItem: vscode.StatusBarItem;
 let vpnDownStatusBarItem: vscode.StatusBarItem;
 let terminalStatusBarItem: vscode.StatusBarItem;
+let reloadStatusBarItem: vscode.StatusBarItem;
 
 function updateStatusBarVisibility() {
     const activeEditor = vscode.window.activeTextEditor;
@@ -28,6 +32,7 @@ function updateStatusBarVisibility() {
         if (guiStatusBarItem) guiStatusBarItem.show();
         if (vpnDownStatusBarItem) vpnDownStatusBarItem.show();
         if (terminalStatusBarItem) terminalStatusBarItem.show();
+        if (reloadStatusBarItem) reloadStatusBarItem.show();
     } else {
     }
 }
@@ -59,6 +64,12 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         } else {
             console.log('User is already logged in');
+        }
+
+        try {
+            await YamlSchemaService.registerSchema(context);
+        } catch (error) {
+            console.error('Failed to register YAML schema:', error);
         }
 
         CliService.listProjects(false).catch(error => {
@@ -170,6 +181,7 @@ export async function activate(context: vscode.ExtensionContext) {
                         commands.push({ label: '$(file-add) Init Configurations', action: 'initConfigurations', keepOpen: true });
 
                         commands.push({ label: '$(comment-discussion) Support', action: 'support', keepOpen: true });
+                        commands.push({ label: '$(feedback) zFeedback', action: 'zerops.sendFeedback', keepOpen: false });
 
                         commands.push({ label: '$(gear) Settings', action: 'settings', keepOpen: true });
                         
@@ -328,6 +340,7 @@ export async function activate(context: vscode.ExtensionContext) {
                                     { label: '$(file-code) Init zerops.yml', action: 'initZYml', description: 'Initializes a zerops.yml file in root' },
                                     { label: '$(file-code) Init zerops-project-import.yml', action: 'initZYmlImport', description: 'Initializes a zerops-project-import.yml file in root' },
                                     { label: '$(search) Scan Project for Framework', action: 'detectFramework', description: 'Scan project and generate zerops.yml' },
+                                    { label: '$(file-add) Setup zerops.yml from scratch', action: 'setupYamlFromScratch', description: 'Create a zerops.yml file by selecting options' },
                                     { label: '$(github) Add GitHub Workflow', action: 'initGitHubWorkflow', description: 'Adds GitHub workflow for automated deployments' },
                                     { label: '$(arrow-left) Go Back', action: 'goBack', description: 'Return to main menu', keepMenuOpen: false }
                                 ];
@@ -383,7 +396,6 @@ export async function activate(context: vscode.ExtensionContext) {
                                         }
 
                                         try {
-                                            // Use the GitHubWorkflowService to create the workflow
                                             await githubWorkflowService.addWorkflow();
                                             keepMenuOpen = false;
                                         } catch (error) {
@@ -391,6 +403,9 @@ export async function activate(context: vscode.ExtensionContext) {
                                             vscode.window.showErrorMessage(`Failed to create GitHub workflow: ${error instanceof Error ? error.message : String(error)}`);
                                             keepMenuOpen = true;
                                         }
+                                    } else if (configSelected.action === 'setupYamlFromScratch') {
+                                        await YamlGeneratorService.createFromScratch();
+                                        keepMenuOpen = false;
                                     } else if (configSelected.action === 'initZYml') {
                                         const workspaceFolders = vscode.workspace.workspaceFolders;
                                         if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -912,6 +927,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 
                 if (guiSelected) {
                     if (guiSelected.action === 'goBack') {
+                        vscode.commands.executeCommand('zerops.showCommands');
                         return;
                     } else if (guiSelected.action === 'exploreProjects') {
                         await handleExploreProjects();
@@ -972,7 +988,10 @@ export async function activate(context: vscode.ExtensionContext) {
                     return;
                 }
                 
-                if (guiSelected.action === 'exploreProjects') {
+                if (guiSelected.action === 'goBack') {
+                    vscode.commands.executeCommand('zerops.showCommands');
+                    return;
+                } else if (guiSelected.action === 'exploreProjects') {
                     try {
                         let projects = await CliService.listProjects(true);
                         let projectsShown = false;
@@ -1120,7 +1139,8 @@ export async function activate(context: vscode.ExtensionContext) {
                         vscode.window.showWarningMessage('No Service ID found. Please set a Service ID first.');
                     }
                 } else if (guiSelected.action === 'goBack') {
-                    vscode.commands.executeCommand('zerops.exploreGuiFromStatusBar');
+                    vscode.commands.executeCommand('zerops.showCommands');
+                    return;
                 } else {
                     vscode.commands.executeCommand(guiSelected.action);
                 }
@@ -1180,11 +1200,9 @@ export async function activate(context: vscode.ExtensionContext) {
             
             const currentWorkspace = workspaceFolders[0].uri.fsPath;
             
-            // First scan for framework
             const { scanProjectForFramework } = require('./init');
             await scanProjectForFramework(currentWorkspace);
             
-            // Then create import.yml if it doesn't exist
             const importYmlPath = path.join(currentWorkspace, 'import.yml');
             if (!fs.existsSync(importYmlPath)) {
                 const { IMPORT_YML } = require('./init');
@@ -1199,11 +1217,62 @@ export async function activate(context: vscode.ExtensionContext) {
         costCalculatorStatusBarItem.tooltip = 'Open Cost Calculator';
         costCalculatorStatusBarItem.show();
 
-        const feedbackStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
-        feedbackStatusBarItem.command = 'zerops.sendFeedback';
-        feedbackStatusBarItem.text = '$(feedback) zFeedback';
-        feedbackStatusBarItem.tooltip = 'Send Feedback';
-        feedbackStatusBarItem.show();
+        const otherToolsStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, -1);
+        otherToolsStatusBarItem.command = 'zerops.otherToolsMenu';
+        otherToolsStatusBarItem.text = '$(tools) Other Tools';
+        otherToolsStatusBarItem.tooltip = 'Open other tools';
+        otherToolsStatusBarItem.show();
+
+        const otherToolsMenuCommand = vscode.commands.registerCommand('zerops.otherToolsMenu', async () => {
+            const options = [
+                { label: '$(note) Scratchpad', action: 'zerops.openScratchpad' },
+                { label: '$(graph) Treemap', action: 'zerops.openTreemap' }
+            ];
+            const selected = await vscode.window.showQuickPick(options, { placeHolder: 'Select a tool' });
+            if (selected) {
+                vscode.commands.executeCommand(selected.action);
+            }
+        });
+
+        reloadStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, -1);
+        reloadStatusBarItem.text = "$(refresh)";
+        reloadStatusBarItem.tooltip = "Reload IDE";
+        reloadStatusBarItem.command = 'zerops.reloadExtension';
+        reloadStatusBarItem.show();
+
+        const reloadCommand = vscode.commands.registerCommand('zerops.reloadExtension', async () => {
+            try {
+                CliService.clearProjectsCache();
+                CliService.clearSettingsCache();
+                CliService.clearSchemaCache();
+                
+                try {
+                    await YamlSchemaService.registerSchema(context);
+                } catch (error) {
+                    console.error('Failed to refresh schema:', error);
+                }
+                
+                const reloadingMessage = vscode.window.setStatusBarMessage("$(sync~spin) Reloading Zerops extension...");
+                
+                setTimeout(() => {
+                    reloadingMessage.dispose();
+                    vscode.commands.executeCommand('workbench.action.reloadWindow');
+                }, 500);
+            } catch (error) {
+                console.error('Failed to reload extension:', error);
+                vscode.window.showErrorMessage('Failed to reload Zerops extension');
+            }
+        });
+
+        let openTerminalCommand = vscode.commands.registerCommand('zerops.openTerminal', async () => {
+            try {
+                const terminal = vscode.window.createTerminal('Zerops');
+                terminal.show();
+            } catch (error) {
+                console.error('Failed to open terminal:', error);
+                vscode.window.showErrorMessage('Failed to open terminal');
+            }
+        });
 
         const commands = [
             vpnUpCommand,
@@ -1221,6 +1290,7 @@ export async function activate(context: vscode.ExtensionContext) {
             logoutCommand,
             scanProjectCommand,
             initProjectCommand,
+            openTerminalCommand,
             vscode.commands.registerCommand('zerops.initGitHubWorkflow', () => {
                 githubWorkflowService.addWorkflow();
             }),
@@ -1288,13 +1358,127 @@ Feedback: ${feedback}
                         vscode.window.showErrorMessage('Failed to send feedback. Please try again later.');
                     }
                 }
-            })
+            }),
+            vscode.commands.registerCommand('zerops.openScratchpad', async () => {
+                const panel = vscode.window.createWebviewPanel(
+                    'zeropsScratchpad',
+                    'Scratchpad',
+                    vscode.ViewColumn.One,
+                    { enableScripts: true }
+                );
+                const saved = context.globalState.get('zeropsScratchpadContent', '');
+                panel.webview.html = `
+                    <html>
+                    <body style="margin:0;padding:0;background:#1e1e1e;color:#d4d4d4;">
+                        <textarea id="scratchpad" style="width:100vw;height:98vh;background:#1e1e1e;color:#d4d4d4;font-size:16px;border:none;outline:none;resize:none;">${saved}</textarea>
+                        <script>
+                            const vscode = acquireVsCodeApi();
+                            const textarea = document.getElementById('scratchpad');
+                            textarea.addEventListener('input', () => {
+                                vscode.postMessage({ type: 'save', value: textarea.value });
+                            });
+                        </script>
+                    </body>
+                    </html>
+                `;
+                panel.webview.onDidReceiveMessage(msg => {
+                    if (msg.type === 'save') {
+                        context.globalState.update('zeropsScratchpadContent', msg.value);
+                    }
+                });
+            }),
+            vscode.commands.registerCommand('zerops.openTreemap', async () => {
+                const workspaceFolders = vscode.workspace.workspaceFolders;
+                if (!workspaceFolders || workspaceFolders.length === 0) {
+                    vscode.window.showErrorMessage('No workspace folder is open. Please open a folder first.');
+                    return;
+                }
+                const rootPath = workspaceFolders[0].uri.fsPath;
+                const EXCLUDED_FOLDERS = ['.git', 'node_modules', '.vscode', 'dist', 'build', 'out', 'coverage'];
+                const CODE_EXTENSIONS = ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.rb', '.go', '.cpp', '.c', '.cs', '.php', '.html', '.css', '.json', '.rs', '.kt', '.swift', '.m', '.h', '.sh', '.pl', '.lua', '.dart', '.scala', '.xml', '.yml', '.yaml'];
+                let nodeId = 1;
+                function scanDir(dir: string, parentId?: number, nodes: any[] = [], edges: any[] = []) {
+                    const stats = fs.statSync(dir);
+                    const base = path.basename(dir);
+                    if (stats.isDirectory()) {
+                        if (EXCLUDED_FOLDERS.includes(base) || base.startsWith('.')) {
+                            nodes.push({ id: nodeId, label: base, shape: 'ellipse', color: '#888' });
+                            if (typeof parentId === 'number') {
+                                edges.push({ from: parentId, to: nodeId });
+                            }
+                            nodeId++;
+                            return;
+                        }
+                        const thisId = nodeId++;
+                        nodes.push({ id: thisId, label: base, shape: 'ellipse', color: '#007acc' });
+                        if (typeof parentId === 'number') {
+                            edges.push({ from: parentId, to: thisId });
+                        }
+                        const children = fs.readdirSync(dir);
+                        for (const name of children) {
+                            scanDir(path.join(dir, name), thisId, nodes, edges);
+                        }
+                    } else {
+                        const ext = path.extname(base).toLowerCase();
+                        if (CODE_EXTENSIONS.includes(ext)) {
+                            const thisId = nodeId++;
+                            nodes.push({ id: thisId, label: base, shape: 'box', color: '#444' });
+                            if (typeof parentId === 'number') {
+                                edges.push({ from: parentId, to: thisId });
+                            }
+                        }
+                    }
+                }
+                const nodes: any[] = [];
+                const edges: any[] = [];
+                scanDir(rootPath, undefined, nodes, edges);
+                const panel = vscode.window.createWebviewPanel(
+                    'codebaseMindMap',
+                    'Codebase Mind Map',
+                    vscode.ViewColumn.One,
+                    { enableScripts: true }
+                );
+                panel.webview.html = `
+                    <html>
+                    <head>
+                        <meta charset='UTF-8'>
+                        <title>Codebase Mind Map</title>
+                        <script type="text/javascript" src="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.js"></script>
+                        <link href="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.css" rel="stylesheet" type="text/css" />
+                        <style>
+                            body { background: #1e1e1e; color: #d4d4d4; margin: 0; }
+                            #mynetwork { width: 100vw; height: 98vh; background: #1e1e1e; }
+                        </style>
+                    </head>
+                    <body>
+                        <div id="mynetwork"></div>
+                        <script type="text/javascript">
+                            const nodes = new vis.DataSet(${JSON.stringify(nodes)});
+                            const edges = new vis.DataSet(${JSON.stringify(edges)});
+                            const container = document.getElementById('mynetwork');
+                            const data = { nodes, edges };
+                            const options = {
+                                nodes: { font: { color: '#fff' }, borderWidth: 1 },
+                                edges: { color: '#888' },
+                                layout: { improvedLayout: true },
+                                physics: { stabilization: false, barnesHut: { gravitationalConstant: -30000, springLength: 120 } },
+                                interaction: { hover: true, navigationButtons: true, keyboard: true }
+                            };
+                            new vis.Network(container, data, options);
+                        </script>
+                    </body>
+                    </html>
+                `;
+            }),
+            otherToolsMenuCommand
         ];
 
         context.subscriptions.push(...commands, githubWorkflowService);
         context.subscriptions.push(
             costCalculatorStatusBarItem,
-            feedbackStatusBarItem
+            otherToolsStatusBarItem,
+            reloadStatusBarItem,
+            reloadCommand
         );
 
         console.log('Zerops extension activated successfully');
@@ -1323,6 +1507,8 @@ Feedback: ${feedback}
 export function deactivate() {
     console.log('Deactivating Zerops extension...');
     
+    YamlSchemaService.dispose();
+    
     if (zeropsStatusBarItem) {
         zeropsStatusBarItem.dispose();
     }
@@ -1343,6 +1529,9 @@ export function deactivate() {
     }
     if (terminalStatusBarItem) {
         terminalStatusBarItem.dispose();
+    }
+    if (reloadStatusBarItem) {
+        reloadStatusBarItem.dispose();
     }
 }
 

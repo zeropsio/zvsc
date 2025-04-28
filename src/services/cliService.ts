@@ -24,6 +24,9 @@ export class CliService {
     private static projectSettingsCache: ProjectSettings | null = null;
     private static lastSettingsFetch: number = 0;
     private static readonly SETTINGS_CACHE_TTL = 1 * 60 * 1000;
+    private static yamlSchemaCache: any = null;
+    private static lastSchemaFetch: number = 0;
+    private static readonly SCHEMA_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
     private static getOutputChannel(): vscode.OutputChannel {
         if (!this.outputChannel) {
@@ -568,5 +571,35 @@ export class CliService {
     static clearSettingsCache() {
         this.projectSettingsCache = null;
         this.lastSettingsFetch = 0;
+    }
+
+    static async fetchYamlSchema(forceRefresh: boolean = false): Promise<any> {
+        try {
+            const now = Date.now();
+            if (!forceRefresh && this.yamlSchemaCache !== null && (now - this.lastSchemaFetch) < this.SCHEMA_CACHE_TTL) {
+                return this.yamlSchemaCache;
+            }
+
+            const response = await axios.get('https://api.app-prg1.zerops.io/api/rest/public/settings/zerops-yml-json-schema.json', {
+                timeout: 10000 // 10 second timeout
+            });
+            
+            this.yamlSchemaCache = response.data;
+            this.lastSchemaFetch = now;
+            
+            return this.yamlSchemaCache;
+        } catch (error) {
+            console.error('Failed to fetch YAML schema:', error);
+            if (this.yamlSchemaCache) {
+                console.log('Returning cached schema due to error');
+                return this.yamlSchemaCache;
+            }
+            throw new Error(`Failed to fetch YAML schema: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    static clearSchemaCache() {
+        this.yamlSchemaCache = null;
+        this.lastSchemaFetch = 0;
     }
 } 
