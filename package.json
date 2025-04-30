@@ -2,7 +2,7 @@
     "name": "zvsc",
     "displayName": "zVSC",
     "description": "Official VS Code extension for Zerops - deploy, manage and monitor your cloud applications directly from your vs code.",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "engines": {
         "vscode": "^1.60.0"
     },
