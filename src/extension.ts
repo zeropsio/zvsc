@@ -191,7 +191,7 @@ export async function activate(context: vscode.ExtensionContext) {
                         commands.push({ label: '$(repo) Clone Recipe', action: 'cloneRecipe', keepOpen: true });
 
                         commands.push({ label: '$(comment-discussion) Support', action: 'support', keepOpen: true });
-                        commands.push({ label: '$(feedback) zFeedback', action: 'zerops.sendFeedback', keepOpen: false });
+                        // commands.push({ label: '$(feedback) zFeedback', action: 'zerops.sendFeedback', keepOpen: false });
 
                         commands.push({ label: '$(gear) Settings', action: 'settings', keepOpen: true });
                         
@@ -1323,68 +1323,68 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.commands.registerCommand('zerops.createCommentedGitHubWorkflow', () => {
                 githubWorkflowService.addWorkflow();
             }),
-            vscode.commands.registerCommand('zerops.sendFeedback', async () => {
-                const consent = await vscode.window.showInformationMessage(
-                    'We will collect your git config (name & email), IDE type, and OS information along with your feedback. Do you want to proceed?',
-                    'Yes', 'No'
-                );
+//             vscode.commands.registerCommand('zerops.sendFeedback', async () => {
+//                 const consent = await vscode.window.showInformationMessage(
+//                     'We will collect your git config (name & email), IDE type, and OS information along with your feedback. Do you want to proceed?',
+//                     'Yes', 'No'
+//                 );
 
-                if (consent !== 'Yes') {
-                    return;
-                }
+//                 if (consent !== 'Yes') {
+//                     return;
+//                 }
 
-                const feedback = await vscode.window.showInputBox({
-                    prompt: 'Enter your feedback',
-                    placeHolder: 'Type your message here...',
-                    ignoreFocusOut: true
-                });
+//                 const feedback = await vscode.window.showInputBox({
+//                     prompt: 'Enter your feedback',
+//                     placeHolder: 'Type your message here...',
+//                     ignoreFocusOut: true
+//                 });
 
-                if (feedback) {
-                    try {
-                        const webhookUrl = 'https://discord.com/api/webhooks/test';
+//                 if (feedback) {
+//                     try {
+//                         const webhookUrl = 'https://discord.com/api/webhooks/test';
                         
-                        let gitInfo = 'Git info not available';
-                        try {
-                            const { exec } = require('child_process');
-                            const gitName = await new Promise((resolve) => {
-                                exec('git config user.name', (error: any, stdout: string) => {
-                                    resolve(error ? '' : stdout.trim());
-                                });
-                            });
-                            const gitEmail = await new Promise((resolve) => {
-                                exec('git config user.email', (error: any, stdout: string) => {
-                                    resolve(error ? '' : stdout.trim());
-                                });
-                            });
-                            gitInfo = `${gitName} <${gitEmail}>`;
-                        } catch (error) {
-                            console.error('Failed to get git info:', error);
-                        }
+//                         let gitInfo = 'Git info not available';
+//                         try {
+//                             const { exec } = require('child_process');
+//                             const gitName = await new Promise((resolve) => {
+//                                 exec('git config user.name', (error: any, stdout: string) => {
+//                                     resolve(error ? '' : stdout.trim());
+//                                 });
+//                             });
+//                             const gitEmail = await new Promise((resolve) => {
+//                                 exec('git config user.email', (error: any, stdout: string) => {
+//                                     resolve(error ? '' : stdout.trim());
+//                                 });
+//                             });
+//                             gitInfo = `${gitName} <${gitEmail}>`;
+//                         } catch (error) {
+//                             console.error('Failed to get git info:', error);
+//                         }
 
-                        const response = await fetch(webhookUrl, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                content: `User: ${gitInfo}
-OS: ${process.platform}
-IDE: ${vscode.env.appName}
-Feedback: ${feedback}
-----------------------------------------`
-                            })
-                        });
+//                         const response = await fetch(webhookUrl, {
+//                             method: 'POST',
+//                             headers: {
+//                                 'Content-Type': 'application/json',
+//                             },
+//                             body: JSON.stringify({
+//                                 content: `User: ${gitInfo}
+// OS: ${process.platform}
+// IDE: ${vscode.env.appName}
+// Feedback: ${feedback}
+// ----------------------------------------`
+//                             })
+//                         });
 
-                        if (response.ok) {
-                            vscode.window.showInformationMessage('Thank you for your feedback!');
-                        } else {
-                            throw new Error('Failed to send feedback');
-                        }
-                    } catch (error) {
-                        vscode.window.showErrorMessage('Failed to send feedback. Please try again later.');
-                    }
-                }
-            }),
+//                         if (response.ok) {
+//                             vscode.window.showInformationMessage('Thank you for your feedback!');
+//                         } else {
+//                             throw new Error('Failed to send feedback');
+//                         }
+//                     } catch (error) {
+//                         vscode.window.showErrorMessage('Failed to send feedback. Please try again later.');
+//                     }
+//                 }
+//             }),
             vscode.commands.registerCommand('zerops.openScratchpad', async () => {
                 const panel = vscode.window.createWebviewPanel(
                     'zeropsScratchpad',
