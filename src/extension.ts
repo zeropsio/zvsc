@@ -166,6 +166,16 @@ export async function activate(context: vscode.ExtensionContext) {
                         
                         let commands = [];
                         
+                        if (!hasServiceId || !hasProjectId) {
+                            if (!hasServiceId) {
+                                commands.push({ label: '$(edit) Set Service ID', action: 'setServiceId', description: 'Configure a Zerops Service ID', keepOpen: true });
+                            }
+                            
+                            if (!hasProjectId) {
+                                commands.push({ label: '$(edit) Set Project ID', action: 'setProjectId', description: 'Configure a Zerops Project ID', keepOpen: true });
+                            }
+                        }
+                        
                         if (hasServiceId) {
                             commands.push({ label: '$(cloud-upload) Push to Zerops', action: 'zerops.pushFromStatusBar', keepOpen: false });
                         }
@@ -178,6 +188,10 @@ export async function activate(context: vscode.ExtensionContext) {
                         commands.push({ label: '$(globe) Explore GUI', action: 'zerops.exploreGui', keepOpen: true });
                         commands.push({ label: '$(book) Zerops Docs', action: 'openDocs', keepOpen: false });
                         commands.push({ label: '$(file-add) Init Configurations', action: 'initConfigurations', keepOpen: true });
+                        commands.push({ label: '$(repo) Clone Recipe', action: 'cloneRecipe', keepOpen: true });
+
+                        commands.push({ label: '$(comment-discussion) Support', action: 'support', keepOpen: true });
+                        // commands.push({ label: '$(feedback) zFeedback', action: 'zerops.sendFeedback', keepOpen: false });
 
                         commands.push({ label: '$(comment-discussion) Support', action: 'support', keepOpen: true });
                         commands.push({ label: '$(feedback) zFeedback', action: 'zerops.sendFeedback', keepOpen: false });
@@ -197,7 +211,45 @@ export async function activate(context: vscode.ExtensionContext) {
                             continue;
                         }
 
-                        if (selected.action === 'cloneRecipe') {
+                        if (selected.action === 'setServiceId') {
+                            const currentSettings = await CliService.loadProjectSettings();
+                            const serviceId = await vscode.window.showInputBox({
+                                prompt: 'Enter your Zerops Service ID',
+                                placeHolder: 'Service ID from Zerops Dashboard',
+                                value: currentSettings.serviceId || '',
+                                validateInput: (value: string) => {
+                                    return value && value.length > 0 ? null : 'Service ID is required';
+                                }
+                            });
+                            
+                            if (serviceId) {
+                                await CliService.saveProjectSettings({ 
+                                    serviceId,
+                                    projectId: currentSettings.projectId || ''
+                                });
+                                vscode.window.showInformationMessage('Service ID saved successfully');
+                            }
+                            keepMenuOpen = true;
+                        } else if (selected.action === 'setProjectId') {
+                            const currentSettings = await CliService.loadProjectSettings();
+                            const projectId = await vscode.window.showInputBox({
+                                prompt: 'Enter your Zerops Project ID',
+                                placeHolder: 'Project ID from Zerops Dashboard',
+                                value: currentSettings.projectId || '',
+                                validateInput: (value: string) => {
+                                    return value && value.length > 0 ? null : 'Project ID is required';
+                                }
+                            });
+                            
+                            if (projectId) {
+                                await CliService.saveProjectSettings({ 
+                                    serviceId: currentSettings.serviceId || '',
+                                    projectId
+                                });
+                                vscode.window.showInformationMessage('Project ID saved successfully');
+                            }
+                            keepMenuOpen = true;
+                        } else if (selected.action === 'cloneRecipe') {
                             try {
                                 const recipes = RECIPES;
                                 
@@ -1274,68 +1326,68 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.commands.registerCommand('zerops.createCommentedGitHubWorkflow', () => {
                 githubWorkflowService.addWorkflow();
             }),
-            vscode.commands.registerCommand('zerops.sendFeedback', async () => {
-                const consent = await vscode.window.showInformationMessage(
-                    'We will collect your git config (name & email), IDE type, and OS information along with your feedback. Do you want to proceed?',
-                    'Yes', 'No'
-                );
+//             vscode.commands.registerCommand('zerops.sendFeedback', async () => {
+//                 const consent = await vscode.window.showInformationMessage(
+//                     'We will collect your git config (name & email), IDE type, and OS information along with your feedback. Do you want to proceed?',
+//                     'Yes', 'No'
+//                 );
 
-                if (consent !== 'Yes') {
-                    return;
-                }
+//                 if (consent !== 'Yes') {
+//                     return;
+//                 }
 
-                const feedback = await vscode.window.showInputBox({
-                    prompt: 'Enter your feedback',
-                    placeHolder: 'Type your message here...',
-                    ignoreFocusOut: true
-                });
+//                 const feedback = await vscode.window.showInputBox({
+//                     prompt: 'Enter your feedback',
+//                     placeHolder: 'Type your message here...',
+//                     ignoreFocusOut: true
+//                 });
 
-                if (feedback) {
-                    try {
-                        const webhookUrl = 'https://discord.com/api/webhooks/test';
+//                 if (feedback) {
+//                     try {
+//                         const webhookUrl = 'https://discord.com/api/webhooks/test';
                         
-                        let gitInfo = 'Git info not available';
-                        try {
-                            const { exec } = require('child_process');
-                            const gitName = await new Promise((resolve) => {
-                                exec('git config user.name', (error: any, stdout: string) => {
-                                    resolve(error ? '' : stdout.trim());
-                                });
-                            });
-                            const gitEmail = await new Promise((resolve) => {
-                                exec('git config user.email', (error: any, stdout: string) => {
-                                    resolve(error ? '' : stdout.trim());
-                                });
-                            });
-                            gitInfo = `${gitName} <${gitEmail}>`;
-                        } catch (error) {
-                            console.error('Failed to get git info:', error);
-                        }
+//                         let gitInfo = 'Git info not available';
+//                         try {
+//                             const { exec } = require('child_process');
+//                             const gitName = await new Promise((resolve) => {
+//                                 exec('git config user.name', (error: any, stdout: string) => {
+//                                     resolve(error ? '' : stdout.trim());
+//                                 });
+//                             });
+//                             const gitEmail = await new Promise((resolve) => {
+//                                 exec('git config user.email', (error: any, stdout: string) => {
+//                                     resolve(error ? '' : stdout.trim());
+//                                 });
+//                             });
+//                             gitInfo = `${gitName} <${gitEmail}>`;
+//                         } catch (error) {
+//                             console.error('Failed to get git info:', error);
+//                         }
 
-                        const response = await fetch(webhookUrl, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                content: `User: ${gitInfo}
-OS: ${process.platform}
-IDE: ${vscode.env.appName}
-Feedback: ${feedback}
-----------------------------------------`
-                            })
-                        });
+//                         const response = await fetch(webhookUrl, {
+//                             method: 'POST',
+//                             headers: {
+//                                 'Content-Type': 'application/json',
+//                             },
+//                             body: JSON.stringify({
+//                                 content: `User: ${gitInfo}
+// OS: ${process.platform}
+// IDE: ${vscode.env.appName}
+// Feedback: ${feedback}
+// ----------------------------------------`
+//                             })
+//                         });
 
-                        if (response.ok) {
-                            vscode.window.showInformationMessage('Thank you for your feedback!');
-                        } else {
-                            throw new Error('Failed to send feedback');
-                        }
-                    } catch (error) {
-                        vscode.window.showErrorMessage('Failed to send feedback. Please try again later.');
-                    }
-                }
-            }),
+//                         if (response.ok) {
+//                             vscode.window.showInformationMessage('Thank you for your feedback!');
+//                         } else {
+//                             throw new Error('Failed to send feedback');
+//                         }
+//                     } catch (error) {
+//                         vscode.window.showErrorMessage('Failed to send feedback. Please try again later.');
+//                     }
+//                 }
+//             }),
             vscode.commands.registerCommand('zerops.openScratchpad', async () => {
                 const panel = vscode.window.createWebviewPanel(
                     'zeropsScratchpad',
