@@ -5,7 +5,6 @@ import * as path from 'path';
 import { Recipe, RecipeOption, CloneOption } from './types';
 import { RECIPES } from './recipes';
 import { ZEROPS_YML, IMPORT_YML } from './init';
-import { Scanner } from './lib/scanner';
 import { GitHubWorkflowService } from './services/githubWorkflowService';
 import { ProjectSettings, loadProjectSettings } from './utils/settings';
 import { YamlSchemaService } from './services/yamlSchemaService';
@@ -339,7 +338,6 @@ export async function activate(context: vscode.ExtensionContext) {
                                 const configOptions = [
                                     { label: '$(file-code) Init basic zerops.yml', action: 'initZYml', description: 'Initializes a basic zerops.yml file in root' },
                                     { label: '$(file-code) Init basic zerops-project-import.yml', action: 'initZYmlImport', description: 'Initializes a basic zerops-project-import.yml file in root' },
-                                    { label: '$(search) Scan & Setup Zerops.yml', action: 'detectFramework', description: 'Scan project and generate zerops.yml' },
                                     { label: '$(file-add) Setup zerops.yml from scratch(DIY)', action: 'setupYamlFromScratch', description: 'Create a zerops.yml file by selecting options' },
                                     { label: '$(github) Add GitHub Workflow', action: 'initGitHubWorkflow', description: 'Adds GitHub workflow for automated deployments' },
                                     { label: '$(arrow-left) Go Back', action: 'goBack', description: 'Return to main menu', keepMenuOpen: false }
@@ -352,18 +350,6 @@ export async function activate(context: vscode.ExtensionContext) {
                                 if (configSelected) {
                                     if (configSelected.action === 'goBack') {
                                         keepMenuOpen = true;
-                                    } else if (configSelected.action === 'detectFramework') {
-                                        const workspaceFolders = vscode.workspace.workspaceFolders;
-                                        if (!workspaceFolders || workspaceFolders.length === 0) {
-                                            vscode.window.showErrorMessage('No workspace folder is open. Please open a folder first.');
-                                            keepMenuOpen = true;
-                                            continue;
-                                        }
-                                        
-                                        const currentWorkspace = workspaceFolders[0].uri.fsPath;
-                                        const { scanProjectForFramework } = require('./init');
-                                        await scanProjectForFramework(currentWorkspace);
-                                        keepMenuOpen = false;
                                     } else if (configSelected.action === 'initGitHubWorkflow') {
                                         const workspaceFolders = vscode.workspace.workspaceFolders;
                                         if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -1179,18 +1165,6 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         });
 
-        let scanProjectCommand = vscode.commands.registerCommand('zerops.scanProject', async () => {
-            const workspaceFolders = vscode.workspace.workspaceFolders;
-            if (!workspaceFolders || workspaceFolders.length === 0) {
-                vscode.window.showErrorMessage('No workspace folder is open. Please open a folder first.');
-                return;
-            }
-            
-            const currentWorkspace = workspaceFolders[0].uri.fsPath;
-            const { scanProjectForFramework } = require('./init');
-            await scanProjectForFramework(currentWorkspace);
-        });
-
         let initProjectCommand = vscode.commands.registerCommand('zerops.initProject', async () => {
             const workspaceFolders = vscode.workspace.workspaceFolders;
             if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -1200,14 +1174,18 @@ export async function activate(context: vscode.ExtensionContext) {
             
             const currentWorkspace = workspaceFolders[0].uri.fsPath;
             
-            const { scanProjectForFramework } = require('./init');
-            await scanProjectForFramework(currentWorkspace);
-            
             const importYmlPath = path.join(currentWorkspace, 'import.yml');
             if (!fs.existsSync(importYmlPath)) {
                 const { IMPORT_YML } = require('./init');
                 fs.writeFileSync(importYmlPath, IMPORT_YML);
                 vscode.window.showInformationMessage('Created import.yml file');
+            }
+            
+            const zeropsYmlPath = path.join(currentWorkspace, 'zerops.yml');
+            if (!fs.existsSync(zeropsYmlPath)) {
+                const { ZEROPS_YML } = require('./init');
+                fs.writeFileSync(zeropsYmlPath, ZEROPS_YML);
+                vscode.window.showInformationMessage('Created zerops.yml file');
             }
         });
 
@@ -1288,7 +1266,6 @@ export async function activate(context: vscode.ExtensionContext) {
             exploreGuiCommand,
             loginCommand,
             logoutCommand,
-            scanProjectCommand,
             initProjectCommand,
             openTerminalCommand,
             vscode.commands.registerCommand('zerops.initGitHubWorkflow', () => {
