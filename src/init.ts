@@ -2,6 +2,9 @@
  * Contains template configurations for Zerops projects
  */
 
+import * as vscode from 'vscode';
+import * as path from 'path';
+
 /**
  * Default zerops.yml configuration for deploying applications
  */

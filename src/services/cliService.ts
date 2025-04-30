@@ -4,6 +4,7 @@ import { spawn } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
+import axios from 'axios';
 
 const execAsync = promisify(exec);
 
@@ -16,7 +17,16 @@ export class CliService {
     private static outputChannel: vscode.OutputChannel;
     private static currentPushProcess: ReturnType<typeof spawn> | null = null;
     private static zeropsTerminal: vscode.Terminal | null = null;
-    private static isLoggedIn: boolean = false; // Track login status
+    private static isLoggedIn: boolean = false;
+    private static projectsCache: {id: string, name: string}[] | null = null;
+    private static lastProjectsFetch: number = 0;
+    private static readonly CACHE_TTL = 5 * 60 * 1000;
+    private static projectSettingsCache: ProjectSettings | null = null;
+    private static lastSettingsFetch: number = 0;
+    private static readonly SETTINGS_CACHE_TTL = 1 * 60 * 1000;
+    private static yamlSchemaCache: any = null;
+    private static lastSchemaFetch: number = 0;
+    private static readonly SCHEMA_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
     private static getOutputChannel(): vscode.OutputChannel {
         if (!this.outputChannel) {
@@ -27,20 +37,31 @@ export class CliService {
 
     private static async executeCommand(command: string, options?: { cwd?: string, appendToOutput?: boolean }): Promise<{ stdout: string; stderr: string }> {
         return new Promise((resolve, reject) => {
+            const outputChannel = this.getOutputChannel();
+            const startTime = Date.now();
+            
+            if (options?.appendToOutput) {
+                outputChannel.appendLine(`Executing: zcli ${command}`);
+            }
+            
             exec(`zcli ${command}`, options, (error, stdout, stderr) => {
+                const executionTime = Date.now() - startTime;
+                
                 if (options?.appendToOutput) {
-                    const outputChannel = this.getOutputChannel();
                     if (stdout) {
                         outputChannel.append(stdout.toString());
                     }
                     if (stderr) {
                         outputChannel.append(stderr.toString());
                     }
+                    outputChannel.appendLine(`Command completed in ${executionTime}ms`);
                 }
                 
                 if (error) {
+                    console.error(`Command failed after ${executionTime}ms:`, error);
                     reject(error);
                 } else {
+                    console.log(`Command completed successfully in ${executionTime}ms`);
                     resolve({
                         stdout: stdout.toString(),
                         stderr: stderr.toString()
@@ -86,95 +107,175 @@ export class CliService {
         });
     }
 
-    // Project settings management (for storing service IDs per workspace)
     static async saveProjectSettings(settings: ProjectSettings): Promise<void> {
-        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        if (!workspaceRoot) {
-            throw new Error('No workspace folder found. Please open a folder in VS Code.');
-        }
+        try {
+            const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            if (!workspaceRoot) {
+                throw new Error('No workspace folder found. Please open a folder in VS Code.');
+            }
 
-        // Create .vscode directory if it doesn't exist
-        const vscodePath = path.join(workspaceRoot, '.vscode');
-        if (!fs.existsSync(vscodePath)) {
-            fs.mkdirSync(vscodePath, { recursive: true });
-        }
+            const vscodePath = path.join(workspaceRoot, '.vscode');
+            if (!fs.existsSync(vscodePath)) {
+                fs.mkdirSync(vscodePath, { recursive: true });
+            }
 
-        // Save settings to .vscode/zerops.json
-        const settingsPath = path.join(vscodePath, 'zerops.json');
-        fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+            const settingsPath = path.join(vscodePath, 'zerops.json');
+            const content = JSON.stringify(settings, null, 2);
+            
+            await fs.promises.writeFile(settingsPath, content);
+            this.projectSettingsCache = settings;
+            this.lastSettingsFetch = Date.now();
+        } catch (error) {
+            console.error('Failed to save project settings:', error);
+            throw new Error(`Failed to save project settings: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
     }
 
     static async loadProjectSettings(): Promise<ProjectSettings> {
-        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        if (!workspaceRoot) {
+        try {
+            const now = Date.now();
+            if (this.projectSettingsCache !== null && (now - this.lastSettingsFetch) < this.SETTINGS_CACHE_TTL) {
+                return this.projectSettingsCache;
+            }
+
+            const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            if (!workspaceRoot) {
+                return {};
+            }
+
+            const settingsPath = path.join(workspaceRoot, '.vscode', 'zerops.json');
+            
+            try {
+                if (fs.existsSync(settingsPath)) {
+                    const content = fs.readFileSync(settingsPath, 'utf-8');
+                    const settings = JSON.parse(content) as ProjectSettings;
+                    this.projectSettingsCache = settings;
+                    this.lastSettingsFetch = now;
+                    return settings;
+                }
+            } catch (error) {
+                console.error('Failed to load project settings:', error);
+                if (this.projectSettingsCache) {
+                    console.log('Returning cached settings due to error');
+                    return this.projectSettingsCache;
+                }
+            }
+            
+            return {};
+        } catch (error) {
+            console.error('Error in loadProjectSettings:', error);
+            if (this.projectSettingsCache) {
+                return this.projectSettingsCache;
+            }
             return {};
         }
-
-        const settingsPath = path.join(workspaceRoot, '.vscode', 'zerops.json');
-        
-        try {
-            if (fs.existsSync(settingsPath)) {
-                const content = fs.readFileSync(settingsPath, 'utf-8');
-                return JSON.parse(content) as ProjectSettings;
-            }
-        } catch (error) {
-            console.error('Failed to load project settings:', error);
-        }
-        
-        return {};
     }
 
     static async checkCliInstalled(): Promise<boolean> {
         try {
-            // We'll still use the direct execution method here since we need to
-            // capture the output to verify installation
             const { stdout } = await this.executeCommand('version');
             console.log('zcli version:', stdout);
             return true;
         } catch (error) {
-            console.error('Failed to verify zcli installation:', error);
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            vscode.window.showErrorMessage(`zcli verification failed: ${errorMessage}. Make sure zcli is installed and in your PATH.`);
+            const installButton = 'Install zcli';
+            const response = await vscode.window.showErrorMessage(
+                'zcli is not installed. Please install it to use this extension.',
+                installButton
+            );
+            
+            if (response === installButton) {
+                const terminal = this.getZeropsTerminal();
+                terminal.show(true);
+                
+                if (process.platform === 'win32') {
+                    terminal.sendText('irm https://zerops.io/zcli/install.ps1 | iex');
+                } else {
+                    terminal.sendText('curl -L https://zerops.io/zcli/install.sh | sh');
+                }
+                
+                vscode.window.showInformationMessage('zcli installation started. Please check the terminal for progress.');
+            }
             return false;
+        }
+    }
+
+    static async checkCliVersion(): Promise<{ current: string, latest: string, needsUpdate: boolean }> {
+        try {
+            const { stdout } = await this.executeCommand('version');
+            const currentVersion = stdout.trim();
+            
+            try {
+                const response = await axios.get('https://api.github.com/repos/zeropsio/zcli/releases/latest', {
+                    timeout: 10000 // 10 second timeout
+                });
+                
+                const latestVersion = response.data.tag_name.replace('v', '');
+                
+                return {
+                    current: currentVersion,
+                    latest: latestVersion,
+                    needsUpdate: currentVersion !== latestVersion
+                };
+            } catch (error: unknown) {
+                if (axios.isAxiosError(error)) {
+                    if (error.code === 'ECONNABORTED') {
+                        throw new Error('Version check timed out. Please check your internet connection.');
+                    }
+                    throw new Error(`GitHub API error: ${error.message}`);
+                }
+                throw error;
+            }
+        } catch (error: unknown) {
+            console.error('Failed to check zcli version:', error);
+            if (error instanceof Error) {
+                if (error.message.includes('Canceled')) {
+                    throw new Error('Version check was canceled. Please try again.');
+                }
+                throw new Error(`Failed to check zcli version: ${error.message}`);
+            }
+            throw new Error('Failed to check zcli version: Unknown error');
+        }
+    }
+
+    static async updateCli(): Promise<void> {
+        const terminal = this.getZeropsTerminal();
+        terminal.show(true);
+        
+        if (process.platform === 'win32') {
+            terminal.sendText('irm https://zerops.io/zcli/install.ps1 | iex');
+        } else {
+            terminal.sendText('curl -L https://zerops.io/zcli/install.sh | sh');
         }
     }
 
     static async checkLoginStatus(): Promise<boolean> {
         try {
-            // Run simple 'zcli' command with no arguments to check login status
-            // This should return "Welcome in Zerops!" if logged in
             const { stdout, stderr } = await this.executeCommand('', { appendToOutput: false });
             const output = stdout + stderr;
             
-            // If output contains "Welcome in Zerops!", user is logged in
             if (output.includes('Welcome in Zerops!')) {
                 console.log('User is logged in to Zerops (detected from welcome message)');
                 this.updateLoginStatus(true);
                 return true;
             }
             
-            // Fallback to checking user info if welcome message isn't found
             try {
                 const { stdout: userStdout, stderr: userStderr } = await this.executeCommand('user', { appendToOutput: false });
                 const userOutput = userStdout + userStderr;
                 
-                // If there's an error about being not logged in, user is not logged in
                 if (userOutput.includes('not logged in') || userOutput.includes('login first') || userOutput.includes('unauthorized')) {
                     this.updateLoginStatus(false);
                     return false;
                 }
                 
-                // If we get a response with user information, user is logged in
                 if (userOutput.includes('@') || userOutput.includes('email') || userOutput.includes('user')) {
                     console.log('User is logged in to Zerops (detected from user info)');
                     this.updateLoginStatus(true);
                     return true;
                 }
             } catch (error) {
-                // Ignore errors in fallback check
             }
             
-            // Default to not logged in if we can't determine
             this.updateLoginStatus(false);
             return false;
         } catch (error) {
@@ -184,7 +285,6 @@ export class CliService {
         }
     }
     
-    // Getter for login status
     static getLoginStatus(): boolean {
         return this.isLoggedIn;
     }
@@ -193,54 +293,64 @@ export class CliService {
         try {
             console.log('Logging in to Zerops...');
             
-            // Use executeCommand to run zcli login rather than using the terminal
-            // Don't append to output channel by default to keep it hidden
             const { stdout, stderr } = await this.executeCommand(`login ${token}`, { appendToOutput: false });
             
-            // Check for error message in stderr
-            if (stderr && !stderr.includes('Welcome') && stderr.includes('Error')) {
-                throw new Error(stderr);
+            if (stderr && (stderr.includes('error') || stderr.includes('Error'))) {
+                throw new Error(`Login failed: ${stderr}`);
             }
             
-            // Store the token if context is provided
-            if (context) {
-                await context.secrets.store('zerops-token', token);
+            const success = stdout.includes('Success') || !stderr.includes('error');
+            
+            if (success) {
+                console.log('Login successful');
+                
+                if (context) {
+                    await context.secrets.store('zerops-token', token);
+                }
+                
+                vscode.window.showInformationMessage('Successfully logged in to Zerops');
+                this.updateLoginStatus(true);
+                
+                this.listProjects(false).catch(error => {
+                    console.error('Initial projects fetch after login failed:', error);
+                });
+            } else {
+                console.error('Login failed:', stderr);
+                vscode.window.showErrorMessage(`Failed to login: ${stderr}`);
+                this.updateLoginStatus(false);
             }
-            
-            // Set login status to true
-            this.updateLoginStatus(true);
-            
-            // Success message through notification
-            vscode.window.showInformationMessage('Successfully logged in to Zerops');
         } catch (error) {
             console.error('Login failed:', error);
+            
             if (context) {
                 await context.secrets.delete('zerops-token');
             }
+            
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            vscode.window.showErrorMessage(`Login failed: ${errorMessage}`);
             this.updateLoginStatus(false);
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-            vscode.window.showErrorMessage(`Failed to login to Zerops: ${errorMessage}`);
             throw error;
         }
     }
 
-    static async logout(context: vscode.ExtensionContext): Promise<void> {
+    static async logout(context?: vscode.ExtensionContext): Promise<void> {
         try {
-            // Use executeCommand to run zcli logout rather than using the terminal
-            await this.executeCommand('logout', { appendToOutput: false });
+            console.log('Logging out from Zerops...');
             
-            // Delete the stored token
-            await context.secrets.delete('zerops-token');
+            const { stdout, stderr } = await this.executeCommand('logout', { appendToOutput: false });
             
-            // Set login status to false
+            if (context) {
+                await context.secrets.delete('zerops-token');
+            }
+            
+            this.clearProjectsCache();
+            
             this.updateLoginStatus(false);
-            
-            // Success message through notification
             vscode.window.showInformationMessage('Successfully logged out from Zerops');
         } catch (error) {
             console.error('Logout failed:', error);
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-            vscode.window.showErrorMessage(`Failed to logout from Zerops: ${errorMessage}`);
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            vscode.window.showErrorMessage(`Failed to logout: ${errorMessage}`);
             throw error;
         }
     }
@@ -251,7 +361,6 @@ export class CliService {
             throw new Error('No workspace folder found. Please open a folder in VS Code.');
         }
 
-        // Save the serviceId to workspace settings
         await this.saveProjectSettings({
             ...(await this.loadProjectSettings()), // Keep existing settings like projectId
             serviceId
@@ -261,15 +370,10 @@ export class CliService {
             const terminal = this.getZeropsTerminal();
             terminal.show(true);
             
-            // Use terminal for the push command instead of spawn
             const command = `zcli push --serviceId ${serviceId}`;
             terminal.sendText(command);
             
-            // No longer set currentPushProcess since we're using terminal
-            // This means we can't cancel it, but that's a trade-off for using terminal
             
-            // Success will be determined by the user seeing the terminal output
-            // We can't automatically detect completion anymore
             return Promise.resolve();
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -286,12 +390,9 @@ export class CliService {
                 return false;
             }
 
-            // Use executeCommand to run zcli login rather than using the terminal
-            // Don't append to output channel to keep it hidden for auto-login
             try {
                 const { stdout, stderr } = await this.executeCommand(`login ${token}`, { appendToOutput: false });
                 
-                // Check for successful login
                 const output = stdout + stderr;
                 if (output.includes('Error') && !output.includes('Welcome')) {
                     console.log('Auto-login failed: token might be invalid');
@@ -306,10 +407,8 @@ export class CliService {
                 return false;
             }
             
-            // Store the token again to ensure it's saved
             await context.secrets.store('zerops-token', token);
             
-            // If we got here, login worked
             this.updateLoginStatus(true);
             console.log('Auto-login successful');
             return true;
@@ -331,9 +430,7 @@ export class CliService {
     }
 
     private static getZeropsTerminal(): vscode.Terminal {
-        // First check if there's an existing Zerops terminal
         if (!this.zeropsTerminal) {
-            // Look for an existing terminal named 'Zerops'
             const existingTerminals = vscode.window.terminals;
             const existingZeropsTerminal = existingTerminals.find(term => term.name === 'Zerops');
             
@@ -341,14 +438,17 @@ export class CliService {
                 console.log('Found existing Zerops terminal, reusing it');
                 this.zeropsTerminal = existingZeropsTerminal;
             } else {
-                // Create a new terminal if none exists
                 console.log('Creating new Zerops terminal');
-                this.zeropsTerminal = vscode.window.createTerminal('Zerops');
+                this.zeropsTerminal = vscode.window.createTerminal({
+                    name: 'Zerops',
+                    shellPath: process.platform === 'win32' ? 'powershell.exe' : '/bin/bash',
+                    shellArgs: process.platform === 'win32' ? ['-NoProfile'] : ['-l']
+                });
             }
             
-            // Clean up reference when terminal is closed
             vscode.window.onDidCloseTerminal(terminal => {
                 if (terminal === this.zeropsTerminal) {
+                    console.log('Zerops terminal closed');
                     this.zeropsTerminal = null;
                 }
             });
@@ -362,7 +462,6 @@ export class CliService {
         outputChannel.appendLine(`Connecting VPN to project ${projectId}...`);
         
         try {
-            // Save the projectId to the workspace settings
             await this.saveProjectSettings({
                 ...(await this.loadProjectSettings()), // Keep existing settings
                 projectId // Add or update the projectId
@@ -423,5 +522,84 @@ export class CliService {
     static updateLoginStatus(status: boolean): void {
         this.isLoggedIn = status;
         vscode.commands.executeCommand('setContext', 'zerops.isLoggedIn', status);
+    }
+    
+    static async listProjects(useCache: boolean = true): Promise<{id: string, name: string}[]> {
+        try {
+            const now = Date.now();
+            if (useCache && this.projectsCache !== null && (now - this.lastProjectsFetch) < this.CACHE_TTL) {
+                return this.projectsCache;
+            }
+            
+            const { stdout } = await this.executeCommand('project list', { appendToOutput: true });
+            const projects: {id: string, name: string}[] = [];
+            
+            const lines = stdout.split('\n');
+            for (let i = 2; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (line === '' || line.startsWith('├') || line.startsWith('└') || line.startsWith('┌')) {
+                    continue;
+                }
+                
+                const match = line.match(/│\s+([a-zA-Z0-9+/=]+)\s+│\s+([^│]+)/);
+                if (match && match.length >= 3) {
+                    const id = match[1].trim();
+                    const name = match[2].trim();
+                    projects.push({ id, name });
+                }
+            }
+            
+            this.projectsCache = projects;
+            this.lastProjectsFetch = now;
+            
+            return projects;
+        } catch (error) {
+            console.error('Failed to list projects:', error);
+            if (this.projectsCache) {
+                console.log('Returning cached projects due to error');
+                return this.projectsCache;
+            }
+            throw new Error(`Failed to list projects: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+    
+    static clearProjectsCache() {
+        this.projectsCache = null;
+        this.lastProjectsFetch = 0;
+    }
+
+    static clearSettingsCache() {
+        this.projectSettingsCache = null;
+        this.lastSettingsFetch = 0;
+    }
+
+    static async fetchYamlSchema(forceRefresh: boolean = false): Promise<any> {
+        try {
+            const now = Date.now();
+            if (!forceRefresh && this.yamlSchemaCache !== null && (now - this.lastSchemaFetch) < this.SCHEMA_CACHE_TTL) {
+                return this.yamlSchemaCache;
+            }
+
+            const response = await axios.get('https://api.app-prg1.zerops.io/api/rest/public/settings/zerops-yml-json-schema.json', {
+                timeout: 10000 // 10 second timeout
+            });
+            
+            this.yamlSchemaCache = response.data;
+            this.lastSchemaFetch = now;
+            
+            return this.yamlSchemaCache;
+        } catch (error) {
+            console.error('Failed to fetch YAML schema:', error);
+            if (this.yamlSchemaCache) {
+                console.log('Returning cached schema due to error');
+                return this.yamlSchemaCache;
+            }
+            throw new Error(`Failed to fetch YAML schema: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    static clearSchemaCache() {
+        this.yamlSchemaCache = null;
+        this.lastSchemaFetch = 0;
     }
 } 

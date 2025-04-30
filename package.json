@@ -60,6 +60,11 @@
                     "type": "string",
                     "default": "",
                     "description": "Zerops Personal Access Token"
+                },
+                "zvsc.minimalStatusBar": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Keep Zerops status bar items visible while hiding editor-related items"
                 }
             }
         },
@@ -91,12 +96,35 @@
             {
                 "command": "zerops.openServiceDashboard",
                 "title": "Zerops: Open Service Dashboard"
+            },
+            {
+                "command": "zerops.exploreCostCalculator",
+                "title": "Zerops: Cost Calculator"
+            },
+            {
+                "command": "zerops.openCostCalculator",
+                "title": "Zerops: Open Cost Calculator"
+            },
+            {
+                "command": "zerops.openTerminal",
+                "title": "Zerops: Open Terminal"
+            },
+            {
+                "command": "zerops.toggleMinimalStatusBar",
+                "title": "Zerops: Toggle Minimal Status Bar"
+            }
+        ],
+        "yamlValidation": [
+            {
+                "fileMatch": ["zerops.yml", "zerops.yaml"],
+                "url": "./zerops-yml-schema.json"
             }
         ]
     },
     "dependencies": {
         "@types/node-fetch": "^2.6.9",
         "axios": "^1.7.9",
+        "node-abort-controller": "^3.1.1",
         "node-fetch": "^2.7.0"
     },
     "devDependencies": {
