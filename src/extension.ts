@@ -166,6 +166,16 @@ export async function activate(context: vscode.ExtensionContext) {
                         
                         let commands = [];
                         
+                        if (!hasServiceId || !hasProjectId) {
+                            if (!hasServiceId) {
+                                commands.push({ label: '$(edit) Set Service ID', action: 'setServiceId', description: 'Configure a Zerops Service ID', keepOpen: true });
+                            }
+                            
+                            if (!hasProjectId) {
+                                commands.push({ label: '$(edit) Set Project ID', action: 'setProjectId', description: 'Configure a Zerops Project ID', keepOpen: true });
+                            }
+                        }
+                        
                         if (hasServiceId) {
                             commands.push({ label: '$(cloud-upload) Push to Zerops', action: 'zerops.pushFromStatusBar', keepOpen: false });
                         }
@@ -178,6 +188,7 @@ export async function activate(context: vscode.ExtensionContext) {
                         commands.push({ label: '$(globe) Explore GUI', action: 'zerops.exploreGui', keepOpen: true });
                         commands.push({ label: '$(book) Zerops Docs', action: 'openDocs', keepOpen: false });
                         commands.push({ label: '$(file-add) Init Configurations', action: 'initConfigurations', keepOpen: true });
+                        commands.push({ label: '$(repo) Clone Recipe', action: 'cloneRecipe', keepOpen: true });
 
                         commands.push({ label: '$(comment-discussion) Support', action: 'support', keepOpen: true });
                         commands.push({ label: '$(feedback) zFeedback', action: 'zerops.sendFeedback', keepOpen: false });
@@ -197,7 +208,45 @@ export async function activate(context: vscode.ExtensionContext) {
                             continue;
                         }
 
-                        if (selected.action === 'cloneRecipe') {
+                        if (selected.action === 'setServiceId') {
+                            const currentSettings = await CliService.loadProjectSettings();
+                            const serviceId = await vscode.window.showInputBox({
+                                prompt: 'Enter your Zerops Service ID',
+                                placeHolder: 'Service ID from Zerops Dashboard',
+                                value: currentSettings.serviceId || '',
+                                validateInput: (value: string) => {
+                                    return value && value.length > 0 ? null : 'Service ID is required';
+                                }
+                            });
+                            
+                            if (serviceId) {
+                                await CliService.saveProjectSettings({ 
+                                    serviceId,
+                                    projectId: currentSettings.projectId || ''
+                                });
+                                vscode.window.showInformationMessage('Service ID saved successfully');
+                            }
+                            keepMenuOpen = true;
+                        } else if (selected.action === 'setProjectId') {
+                            const currentSettings = await CliService.loadProjectSettings();
+                            const projectId = await vscode.window.showInputBox({
+                                prompt: 'Enter your Zerops Project ID',
+                                placeHolder: 'Project ID from Zerops Dashboard',
+                                value: currentSettings.projectId || '',
+                                validateInput: (value: string) => {
+                                    return value && value.length > 0 ? null : 'Project ID is required';
+                                }
+                            });
+                            
+                            if (projectId) {
+                                await CliService.saveProjectSettings({ 
+                                    serviceId: currentSettings.serviceId || '',
+                                    projectId
+                                });
+                                vscode.window.showInformationMessage('Project ID saved successfully');
+                            }
+                            keepMenuOpen = true;
+                        } else if (selected.action === 'cloneRecipe') {
                             try {
                                 const recipes = RECIPES;
                                 
