@@ -191,10 +191,8 @@ export async function activate(context: vscode.ExtensionContext) {
                         commands.push({ label: '$(repo) Clone Recipe', action: 'cloneRecipe', keepOpen: true });
 
                         commands.push({ label: '$(comment-discussion) Support', action: 'support', keepOpen: true });
+                        
                         // commands.push({ label: '$(feedback) zFeedback', action: 'zerops.sendFeedback', keepOpen: false });
-
-                        commands.push({ label: '$(comment-discussion) Support', action: 'support', keepOpen: true });
-                        commands.push({ label: '$(feedback) zFeedback', action: 'zerops.sendFeedback', keepOpen: false });
 
                         commands.push({ label: '$(gear) Settings', action: 'settings', keepOpen: true });
                         
