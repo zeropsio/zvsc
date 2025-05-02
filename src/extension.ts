@@ -2,12 +2,14 @@ import * as vscode from 'vscode';
 import { CliService } from './services/cliService';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { Recipe, RecipeOption, CloneOption } from './types';
 import { RECIPES } from './recipes';
 import { ZEROPS_YML, IMPORT_YML } from './init';
 import { GitHubWorkflowService } from './services/githubWorkflowService';
 import { ProjectSettings, loadProjectSettings } from './utils/settings';
 import { YamlSchemaService } from './services/yamlSchemaService';
+import { CostCalculatorService } from './services/costCalculatorService';
 import fetch from 'node-fetch';
 import { YamlGeneratorService } from './services/yamlGeneratorService';
 const yaml = require('js-yaml');
@@ -70,6 +72,8 @@ export async function activate(context: vscode.ExtensionContext) {
         } catch (error) {
             console.error('Failed to register YAML schema:', error);
         }
+
+        const costCalculator = CostCalculatorService.getInstance();
 
         CliService.listProjects(false).catch(error => {
             console.error('Failed to fetch projects on startup:', error);
@@ -189,6 +193,7 @@ export async function activate(context: vscode.ExtensionContext) {
                         commands.push({ label: '$(book) Zerops Docs', action: 'openDocs', keepOpen: false });
                         commands.push({ label: '$(file-add) Init Configurations', action: 'initConfigurations', keepOpen: true });
                         commands.push({ label: '$(repo) Clone Recipe', action: 'cloneRecipe', keepOpen: true });
+                        commands.push({ label: '$(rocket) Cost Calculator', action: 'zerops.exploreCostCalculator', keepOpen: false });
 
                         commands.push({ label: '$(comment-discussion) Support', action: 'support', keepOpen: true });
                         
@@ -386,7 +391,7 @@ export async function activate(context: vscode.ExtensionContext) {
                         else if (selected.action === 'initConfigurations') {
                             try {
                                 const configOptions = [
-                                    { label: '$(file-code) Init basic zerops.yml', action: 'initZYml', description: 'Initializes a basic zerops.yml file in root' },
+                                    { label: '$(repo) Import zerops.yml from recipe', action: 'importZYmlFromRecipe', description: 'Import zerops.yml from an existing recipe' },
                                     { label: '$(file-code) Init basic zerops-project-import.yml', action: 'initZYmlImport', description: 'Initializes a basic zerops-project-import.yml file in root' },
                                     { label: '$(file-add) Setup zerops.yml from scratch(DIY)', action: 'setupYamlFromScratch', description: 'Create a zerops.yml file by selecting options' },
                                     { label: '$(github) Add GitHub Workflow', action: 'initGitHubWorkflow', description: 'Adds GitHub workflow for automated deployments' },
@@ -442,40 +447,111 @@ export async function activate(context: vscode.ExtensionContext) {
                                     } else if (configSelected.action === 'setupYamlFromScratch') {
                                         await YamlGeneratorService.createFromScratch();
                                         keepMenuOpen = false;
-                                    } else if (configSelected.action === 'initZYml') {
-                                        const workspaceFolders = vscode.workspace.workspaceFolders;
-                                        if (!workspaceFolders || workspaceFolders.length === 0) {
-                                            vscode.window.showErrorMessage('No workspace folder is open. Please open a folder first.');
-                                            keepMenuOpen = true;
-                                            continue;
-                                        }
-                                        
-                                        const currentWorkspace = workspaceFolders[0].uri.fsPath;
-                                        const zeropsYmlPath = path.join(currentWorkspace, 'zerops.yml');
-                                        
-                                        if (fs.existsSync(zeropsYmlPath)) {
-                                            const overwrite = await vscode.window.showWarningMessage(
-                                                'zerops.yml already exists. Do you want to overwrite it?',
-                                                'Yes', 'No'
-                                            );
+                                    } else if (configSelected.action === 'importZYmlFromRecipe') {
+                                        try {
+                                            const recipes = RECIPES;
                                             
-                                            if (overwrite !== 'Yes') {
+                                            const recipeOptions = recipes.map((recipe: Recipe): RecipeOption => ({
+                                                label: `$(repo) ${recipe.name}`,
+                                                action: 'importYml',
+                                                description: `Import zerops.yml from ${recipe.name}`,
+                                                url: recipe.url,
+                                                name: recipe.name
+                                            }));
+                                            
+                                            recipeOptions.push({ 
+                                                label: '$(arrow-left) Go Back', 
+                                                action: 'goBack', 
+                                                description: 'Return to config menu',
+                                                url: '',
+                                                name: '' 
+                                            });
+                                            
+                                            const recipeSelected = await vscode.window.showQuickPick(recipeOptions, {
+                                                placeHolder: 'Select a recipe to import zerops.yml from'
+                                            }) as RecipeOption | undefined;
+                                            
+                                            if (!recipeSelected || recipeSelected.action === 'goBack') {
                                                 keepMenuOpen = true;
                                                 continue;
                                             }
-                                        }
-                                        
-                                        try {
-                                            fs.writeFileSync(zeropsYmlPath, ZEROPS_YML);
-                                            vscode.window.showInformationMessage('zerops.yml has been created successfully!');
+
+                                            const workspaceFolders = vscode.workspace.workspaceFolders;
+                                            if (!workspaceFolders || workspaceFolders.length === 0) {
+                                                vscode.window.showErrorMessage('No workspace folder is open. Please open a folder first.');
+                                                keepMenuOpen = true;
+                                                continue;
+                                            }
                                             
-                                            const doc = await vscode.workspace.openTextDocument(zeropsYmlPath);
-                                            await vscode.window.showTextDocument(doc);
+                                            const currentWorkspace = workspaceFolders[0].uri.fsPath;
+                                            const zeropsYmlPath = path.join(currentWorkspace, 'zerops.yml');
+                                            
+                                            if (fs.existsSync(zeropsYmlPath)) {
+                                                const overwrite = await vscode.window.showWarningMessage(
+                                                    'zerops.yml already exists. Do you want to overwrite it?',
+                                                    'Yes', 'No'
+                                                );
+                                                
+                                                if (overwrite !== 'Yes') {
+                                                    keepMenuOpen = true;
+                                                    continue;
+                                                }
+                                            }
+                                            
+                                            await vscode.window.withProgress({
+                                                location: vscode.ProgressLocation.Notification,
+                                                title: `Importing zerops.yml from ${recipeSelected.name}...`,
+                                                cancellable: false
+                                            }, async (progress) => {
+                                                progress.report({ increment: 0 });
+                                                
+                                                let tempDir = '';
+                                                try {
+                                                    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zerops-recipe-'));
+                                                    
+                                                    // Clone the repository into the temp directory
+                                                    const { exec } = require('child_process');
+                                                    await new Promise<void>((resolve, reject) => {
+                                                        exec(`git clone --depth 1 ${recipeSelected.url} .`, { cwd: tempDir }, (error: any) => {
+                                                            if (error) {
+                                                                reject(error);
+                                                                return;
+                                                            }
+                                                            resolve();
+                                                        });
+                                                    });
+                                                    
+                                                    progress.report({ increment: 50, message: 'Recipe cloned, importing zerops.yml...' });
+                                                    
+                                                    // Check if zerops.yml exists in the cloned repository
+                                                    const tempZeropsYmlPath = path.join(tempDir, 'zerops.yml');
+                                                    if (!fs.existsSync(tempZeropsYmlPath)) {
+                                                        throw new Error(`zerops.yml not found in ${recipeSelected.name} recipe`);
+                                                    }
+                                                    
+                                                    fs.copyFileSync(tempZeropsYmlPath, zeropsYmlPath);
+                                                    
+                                                    fs.rmSync(tempDir, { recursive: true, force: true });
+                                                    
+                                                    progress.report({ increment: 100, message: 'Import completed successfully!' });
+                                                    
+                                                    const doc = await vscode.workspace.openTextDocument(zeropsYmlPath);
+                                                    await vscode.window.showTextDocument(doc);
+                                                    
+                                                    vscode.window.showInformationMessage(`zerops.yml from ${recipeSelected.name} imported successfully!`);
+                                                } catch (error: unknown) {
+                                                    console.error('Import failed:', error);
+                                                    vscode.window.showErrorMessage(`Failed to import zerops.yml: ${error instanceof Error ? error.message : String(error)}`);
+                                                    if (fs.existsSync(tempDir)) {
+                                                        fs.rmSync(tempDir, { recursive: true, force: true });
+                                                    }
+                                                }
+                                            });
                                             
                                             keepMenuOpen = false;
                                         } catch (error) {
-                                            console.error('Failed to create zerops.yml:', error);
-                                            vscode.window.showErrorMessage(`Failed to create zerops.yml: ${error instanceof Error ? error.message : String(error)}`);
+                                            console.error('Error importing zerops.yml:', error);
+                                            vscode.window.showErrorMessage(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
                                             keepMenuOpen = true;
                                         }
                                     } else if (configSelected.action === 'initZYmlImport') {
@@ -1239,12 +1315,6 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         });
 
-        const costCalculatorStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-        costCalculatorStatusBarItem.command = 'zerops.exploreCostCalculator';
-        costCalculatorStatusBarItem.text = '$(rocket) zCost';
-        costCalculatorStatusBarItem.tooltip = 'Open Cost Calculator';
-        costCalculatorStatusBarItem.show();
-
         const otherToolsStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, -1);
         otherToolsStatusBarItem.command = 'zerops.otherToolsMenu';
         otherToolsStatusBarItem.text = '$(tools) Other Tools';
@@ -1497,16 +1567,41 @@ export async function activate(context: vscode.ExtensionContext) {
                     </html>
                 `;
             }),
+            vscode.commands.registerCommand('zerops.exploreCostCalculator', async () => {
+                try {
+                    console.log('Starting cost calculator...');
+                    const costCalculator = CostCalculatorService.getInstance();
+                    if (!costCalculator) {
+                        throw new Error('Failed to initialize cost calculator');
+                    }
+                    await costCalculator.startCalculator();
+                    console.log('Cost calculator completed successfully');
+                } catch (error) {
+                    console.error('Error in cost calculator:', error);
+                    vscode.window.showErrorMessage(`Cost calculator error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                }
+            }),
             otherToolsMenuCommand
         ];
 
         context.subscriptions.push(...commands, githubWorkflowService);
         context.subscriptions.push(
-            costCalculatorStatusBarItem,
             otherToolsStatusBarItem,
             reloadStatusBarItem,
-            reloadCommand
+            reloadCommand,
+            CostCalculatorService.getInstance()
         );
+
+        vscode.commands.registerCommand('zerops.openCostCalculator', async () => {
+            try {
+                console.log('Opening cost calculator from command palette...');
+                const costCalculator = CostCalculatorService.getInstance();
+                await costCalculator.startCalculator();
+            } catch (error) {
+                console.error('Error opening cost calculator from command palette:', error);
+                vscode.window.showErrorMessage(`Failed to open cost calculator: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
+        });
 
         console.log('Zerops extension activated successfully');
 
