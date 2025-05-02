@@ -34,16 +34,11 @@ type CalculationState = {
   totalCost: number;
 };
 
-export class CostCalculatorService {
+export class CostCalculatorService implements vscode.Disposable {
   private static instance: CostCalculatorService;
-  private statusBarItem: vscode.StatusBarItem;
+  private disposed = false;
 
   private constructor() {
-    this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 2);
-    this.statusBarItem.text = "$(graph) zCost";
-    this.statusBarItem.tooltip = "Explore Zerops Cost Calculator";
-    this.statusBarItem.command = 'zerops.exploreCostCalculator';
-    this.statusBarItem.show();
   }
 
   public static getInstance(): CostCalculatorService {
@@ -81,9 +76,13 @@ export class CostCalculatorService {
     totalCostStatusBar.show();
     
     try {
-      const projectTypeResult = await vscode.window.showQuickPick([
-        { label: "Lightweight Core", description: "Free", value: "lightweight" },
-        { label: "Serious Core", description: "$10/30 days", value: "serious" }
+      interface CostCalculatorQuickPickItem extends vscode.QuickPickItem {
+        id: string;
+      }
+      
+      const projectTypeResult = await vscode.window.showQuickPick<CostCalculatorQuickPickItem>([
+        { label: "Lightweight Core", description: "Free", id: "lightweight" },
+        { label: "Serious Core", description: "$10/30 days", id: "serious" }
       ], {
         placeHolder: "Select project core type"
       });
@@ -93,13 +92,13 @@ export class CostCalculatorService {
         return;
       }
       
-      state.projectType = projectTypeResult.value;
+      state.projectType = projectTypeResult.id;
       state.totalCost = this.calculateTotalCost(state);
       totalCostStatusBar.text = `$(dollar) $${state.totalCost.toFixed(2)} per 30d`;
       
-      const cpuTypeResult = await vscode.window.showQuickPick([
-        { label: "Shared CPU", description: "$0.60 per CPU/30d", value: "shared" },
-        { label: "Dedicated CPU", description: "$6.00 per CPU/30d", value: "dedicated" }
+      const cpuTypeResult = await vscode.window.showQuickPick<CostCalculatorQuickPickItem>([
+        { label: "Shared CPU", description: "$0.60 per CPU/30d", id: "shared" },
+        { label: "Dedicated CPU", description: "$6.00 per CPU/30d", id: "dedicated" }
       ], {
         placeHolder: "Select CPU type"
       });
@@ -109,7 +108,7 @@ export class CostCalculatorService {
         return;
       }
       
-      state.cpuType = cpuTypeResult.value;
+      state.cpuType = cpuTypeResult.id;
       state.totalCost = this.calculateTotalCost(state);
       totalCostStatusBar.text = `$(dollar) $${state.totalCost.toFixed(2)} per 30d`;
       
@@ -167,9 +166,13 @@ export class CostCalculatorService {
       state.totalCost = this.calculateTotalCost(state);
       totalCostStatusBar.text = `$(dollar) $${state.totalCost.toFixed(2)} per 30d`;
       
-      const ipv4Result = await vscode.window.showQuickPick([
-        { label: "Yes", description: "$3.00/30d", value: true },
-        { label: "No", description: "Use shared IP (free)", value: false }
+      interface BooleanQuickPickItem extends vscode.QuickPickItem {
+        boolValue: boolean;
+      }
+      
+      const ipv4Result = await vscode.window.showQuickPick<BooleanQuickPickItem>([
+        { label: "Yes", description: "$3.00/30d", boolValue: true },
+        { label: "No", description: "Use shared IP (free)", boolValue: false }
       ], {
         placeHolder: "Do you need a dedicated IPv4 address?"
       });
@@ -179,7 +182,7 @@ export class CostCalculatorService {
         return;
       }
       
-      state.dedicatedIpv4 = ipv4Result.value as boolean;
+      state.dedicatedIpv4 = ipv4Result.boolValue;
       state.totalCost = this.calculateTotalCost(state);
       totalCostStatusBar.text = `$(dollar) $${state.totalCost.toFixed(2)} per 30d`;
       
@@ -398,6 +401,9 @@ Pricing details: https://docs.zerops.io/company/pricing
   }
 
   public dispose() {
-    this.statusBarItem.dispose();
+    if (this.disposed) {
+      return;
+    }
+    this.disposed = true;
   }
 } 

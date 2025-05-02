@@ -8,6 +8,7 @@ import { ZEROPS_YML, IMPORT_YML } from './init';
 import { GitHubWorkflowService } from './services/githubWorkflowService';
 import { ProjectSettings, loadProjectSettings } from './utils/settings';
 import { YamlSchemaService } from './services/yamlSchemaService';
+import { CostCalculatorService } from './services/costCalculatorService';
 import fetch from 'node-fetch';
 import { YamlGeneratorService } from './services/yamlGeneratorService';
 const yaml = require('js-yaml');
@@ -70,6 +71,8 @@ export async function activate(context: vscode.ExtensionContext) {
         } catch (error) {
             console.error('Failed to register YAML schema:', error);
         }
+
+        const costCalculator = CostCalculatorService.getInstance();
 
         CliService.listProjects(false).catch(error => {
             console.error('Failed to fetch projects on startup:', error);
@@ -189,6 +192,7 @@ export async function activate(context: vscode.ExtensionContext) {
                         commands.push({ label: '$(book) Zerops Docs', action: 'openDocs', keepOpen: false });
                         commands.push({ label: '$(file-add) Init Configurations', action: 'initConfigurations', keepOpen: true });
                         commands.push({ label: '$(repo) Clone Recipe', action: 'cloneRecipe', keepOpen: true });
+                        commands.push({ label: '$(rocket) Cost Calculator', action: 'zerops.exploreCostCalculator', keepOpen: false });
 
                         commands.push({ label: '$(comment-discussion) Support', action: 'support', keepOpen: true });
                         
@@ -1239,12 +1243,6 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         });
 
-        const costCalculatorStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-        costCalculatorStatusBarItem.command = 'zerops.exploreCostCalculator';
-        costCalculatorStatusBarItem.text = '$(rocket) zCost';
-        costCalculatorStatusBarItem.tooltip = 'Open Cost Calculator';
-        costCalculatorStatusBarItem.show();
-
         const otherToolsStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, -1);
         otherToolsStatusBarItem.command = 'zerops.otherToolsMenu';
         otherToolsStatusBarItem.text = '$(tools) Other Tools';
@@ -1497,16 +1495,41 @@ export async function activate(context: vscode.ExtensionContext) {
                     </html>
                 `;
             }),
+            vscode.commands.registerCommand('zerops.exploreCostCalculator', async () => {
+                try {
+                    console.log('Starting cost calculator...');
+                    const costCalculator = CostCalculatorService.getInstance();
+                    if (!costCalculator) {
+                        throw new Error('Failed to initialize cost calculator');
+                    }
+                    await costCalculator.startCalculator();
+                    console.log('Cost calculator completed successfully');
+                } catch (error) {
+                    console.error('Error in cost calculator:', error);
+                    vscode.window.showErrorMessage(`Cost calculator error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                }
+            }),
             otherToolsMenuCommand
         ];
 
         context.subscriptions.push(...commands, githubWorkflowService);
         context.subscriptions.push(
-            costCalculatorStatusBarItem,
             otherToolsStatusBarItem,
             reloadStatusBarItem,
-            reloadCommand
+            reloadCommand,
+            CostCalculatorService.getInstance()
         );
+
+        vscode.commands.registerCommand('zerops.openCostCalculator', async () => {
+            try {
+                console.log('Opening cost calculator from command palette...');
+                const costCalculator = CostCalculatorService.getInstance();
+                await costCalculator.startCalculator();
+            } catch (error) {
+                console.error('Error opening cost calculator from command palette:', error);
+                vscode.window.showErrorMessage(`Failed to open cost calculator: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
+        });
 
         console.log('Zerops extension activated successfully');
 
