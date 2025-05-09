@@ -1385,7 +1385,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
         let openTerminalCommand = vscode.commands.registerCommand('zerops.openTerminal', async () => {
             try {
-                const terminal = vscode.window.createTerminal('Zerops');
+                const terminal = CliService.getZeropsTerminal();
                 terminal.show();
             } catch (error) {
                 console.error('Failed to open terminal:', error);

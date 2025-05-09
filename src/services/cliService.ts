@@ -219,7 +219,9 @@ export class CliService {
         try {
             // Always check for the latest version - no caching
             const { stdout } = await this.executeCommand('version');
-            const currentVersion = stdout.trim();
+            
+            const versionMatch = stdout.match(/v(\d+\.\d+\.\d+)/);
+            const currentVersion = versionMatch ? versionMatch[1] : stdout.trim();
             
             try {
                 const response = await axios.get('https://api.github.com/repos/zeropsio/zcli/releases/latest', {
@@ -448,7 +450,7 @@ export class CliService {
         }
     }
 
-    private static getZeropsTerminal(): vscode.Terminal {
+    static getZeropsTerminal(): vscode.Terminal {
         if (!this.zeropsTerminal) {
             const existingTerminals = vscode.window.terminals;
             const existingZeropsTerminal = existingTerminals.find(term => term.name === 'Zerops');
