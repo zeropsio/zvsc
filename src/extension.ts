@@ -52,6 +52,20 @@ export async function activate(context: vscode.ExtensionContext) {
             throw new Error('zcli is not installed. Please install zcli to use this extension.');
         }
         
+        try {
+            const versionInfo = await CliService.checkCliVersion();
+            if (versionInfo.needsUpdate) {
+                const updateMessage = `zcli update available: ${versionInfo.current} → ${versionInfo.latest}`;
+                const selection = await vscode.window.showInformationMessage(updateMessage, 'Update Now');
+                
+                if (selection === 'Update Now') {
+                    await CliService.updateCli();
+                }
+            }
+        } catch (error) {
+            console.error('Failed to check zcli version:', error);
+        }
+        
         await CliService.checkLoginStatus();
         
         if (!CliService.getLoginStatus()) {
@@ -705,10 +719,17 @@ export async function activate(context: vscode.ExtensionContext) {
                                     try {
                                         const terminal = vscode.window.createTerminal('Zerops CLI Update');
                                         terminal.show();
-                                        terminal.sendText('curl -s https://zerops.io/install.sh | bash');
-                                        vscode.window.showInformationMessage('Updating Zerops CLI...');
+                                        
+                                        if (process.platform === 'win32') {
+                                            terminal.sendText('irm https://zerops.io/zcli/install.ps1 | iex');
+                                        } else {
+                                            terminal.sendText('npm i -g @zerops/zcli@latest');
+                                        }
+                                        
+                                        vscode.window.showInformationMessage('zcli update started. Check the terminal for progress.');
                                     } catch (error) {
-                                        vscode.window.showErrorMessage(`Failed to update Zerops CLI: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                                        console.error('Failed to update zcli:', error);
+                                        vscode.window.showErrorMessage(`zcli update failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
                                     }
                                     keepMenuOpen = true;
                                 } else if (settingsSelected.action === 'checkExtensionUpdates') {
@@ -1364,7 +1385,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
         let openTerminalCommand = vscode.commands.registerCommand('zerops.openTerminal', async () => {
             try {
-                const terminal = vscode.window.createTerminal('Zerops');
+                const terminal = CliService.getZeropsTerminal();
                 terminal.show();
             } catch (error) {
                 console.error('Failed to open terminal:', error);
@@ -1604,21 +1625,6 @@ export async function activate(context: vscode.ExtensionContext) {
         });
 
         console.log('Zerops extension activated successfully');
-
-        try {
-            const versionInfo = await CliService.checkCliVersion();
-            if (versionInfo.needsUpdate) {
-                const updateMessage = `zcli update available: ${versionInfo.current} → ${versionInfo.latest}`;
-                const updateButton = 'Update Now';
-                const response = await vscode.window.showInformationMessage(updateMessage, updateButton);
-                
-                if (response === updateButton) {
-                    await CliService.updateCli();
-                }
-            }
-        } catch (error) {
-            console.error('Failed to check zcli version:', error);
-        }
     } catch (error) {
         console.error('Failed to activate Zerops extension:', error);
         const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
