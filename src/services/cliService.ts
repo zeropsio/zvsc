@@ -26,7 +26,7 @@ export class CliService {
     private static readonly SETTINGS_CACHE_TTL = 1 * 60 * 1000;
     private static yamlSchemaCache: any = null;
     private static lastSchemaFetch: number = 0;
-    private static readonly SCHEMA_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+    private static readonly SCHEMA_CACHE_TTL = 24 * 60 * 60 * 1000;
 
     private static getOutputChannel(): vscode.OutputChannel {
         if (!this.outputChannel) {
@@ -175,6 +175,21 @@ export class CliService {
         try {
             const { stdout } = await this.executeCommand('version');
             console.log('zcli version:', stdout);
+            
+                if (versionInfo.needsUpdate) {
+                    vscode.window.showInformationMessage(
+                        `zcli update available: ${versionInfo.current} → ${versionInfo.latest}`,
+                        'Update Now'
+                    ).then(selection => {
+                        if (selection === 'Update Now') {
+                            this.updateCli();
+                        }
+                    });
+                }
+            }).catch(error => {
+                console.error('Failed to check for zcli updates:', error);
+            });
+            
             return true;
         } catch (error) {
             const installButton = 'Install zcli';
@@ -201,6 +216,7 @@ export class CliService {
 
     static async checkCliVersion(): Promise<{ current: string, latest: string, needsUpdate: boolean }> {
         try {
+            // Always check for the latest version - no caching
             const { stdout } = await this.executeCommand('version');
             const currentVersion = stdout.trim();
             
@@ -244,8 +260,10 @@ export class CliService {
         if (process.platform === 'win32') {
             terminal.sendText('irm https://zerops.io/zcli/install.ps1 | iex');
         } else {
-            terminal.sendText('curl -L https://zerops.io/zcli/install.sh | sh');
+            terminal.sendText('npm i -g @zerops/zcli@latest');
         }
+        
+        vscode.window.showInformationMessage('zcli update started. Please check the terminal for progress.');
     }
 
     static async checkLoginStatus(): Promise<boolean> {
