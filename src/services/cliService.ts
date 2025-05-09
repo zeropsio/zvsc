@@ -176,6 +176,7 @@ export class CliService {
             const { stdout } = await this.executeCommand('version');
             console.log('zcli version:', stdout);
             
+            this.checkCliVersion().then(versionInfo => {
                 if (versionInfo.needsUpdate) {
                     vscode.window.showInformationMessage(
                         `zcli update available: ${versionInfo.current} → ${versionInfo.latest}`,
