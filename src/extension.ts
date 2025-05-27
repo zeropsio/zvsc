@@ -129,6 +129,27 @@ export async function activate(context: vscode.ExtensionContext) {
                 vscode.window.showErrorMessage(`Push failed: ${errorMessage}`);
             }
         });
+
+        let pushChangesCommand = vscode.commands.registerCommand('zerops.push', async () => {
+            try {
+                const settings = await CliService.loadProjectSettings();
+                if (!settings.serviceId) {
+                    vscode.window.showErrorMessage('No service ID found. Please set a service ID in .vscode/zerops.json or through the Settings menu.');
+                    return;
+                }
+                
+                await CliService.pushToService(settings.serviceId);
+                vscode.window.showInformationMessage('Push completed successfully!');
+            } catch (error) {
+                console.error('Push failed:', error);
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+                vscode.window.showErrorMessage(`Push failed: ${errorMessage}`);
+            }
+        });
+
+        let pushChangesAliasCommand = vscode.commands.registerCommand('zerops.pushChanges', async () => {
+            await vscode.commands.executeCommand('zerops.push');
+        });
         
         let vpnUpFromStatusBarCommand = vscode.commands.registerCommand('zerops.vpnUpFromStatusBar', async () => {
             try {
@@ -857,6 +878,8 @@ export async function activate(context: vscode.ExtensionContext) {
             context.subscriptions.push(vpnDownStatusBarItem);
             context.subscriptions.push(showCommandsCommand);
             context.subscriptions.push(pushCommand);
+            context.subscriptions.push(pushChangesCommand);
+            context.subscriptions.push(pushChangesAliasCommand);
             
             console.log('Created Zerops status bar item');
         } catch (error) {
